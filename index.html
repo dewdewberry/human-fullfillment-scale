@@ -1,663 +1,1063 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>5-Pillar Human Experience Scale</title>
-    
-    <!-- Tailwind CSS CDN -->
-    <script>
-        // Suppress Tailwind CDN dev warning in browser console
-        window.tailwind = { config: { corePlugins: { preflight: true } } };
-        console.warn = (function(oldWarn) {
-            return function(msg) {
-                if (typeof msg === 'string' && msg.includes('cdn.tailwindcss.com')) return;
-                oldWarn.apply(console, arguments);
-            };
-        })(console.warn);
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sean's Scale on Human Experience</title>
 
-    <!-- Firebase SDKs for Real-Time Room Sync -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,550;1,9..144,400;1,9..144,550&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-    <style>
-        input[type="range"] { accent-color: #38bdf8; }
-        .custom-number-input::-webkit-inner-spin-button, 
-        .custom-number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-    </style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: { ink:'#131210', coal:'#1A1815', line:'#2B2822', cream:'#EDE6D8', dim:'#8D877A', brass:'#C9A24B', bad:'#D9654A', good:'#8FB98B', warn:'#E2B33F' },
+    fontFamily: { serif:['Fraunces','Georgia','serif'], mono:['"IBM Plex Mono"','ui-monospace','monospace'] }
+  }}
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  ::selection{background:#C9A24B;color:#131210}
+  body{background-image:radial-gradient(rgba(237,230,216,.028) 1px,transparent 1.3px);background-size:26px 26px}
+  :focus-visible{outline:1px solid rgba(201,162,75,.7);outline-offset:2px}
+  input[type=range]:focus-visible{outline:none}
+
+  /* ---- drafting-plate corner marks ---- */
+  .cor{position:absolute;width:10px;height:10px;border:0 solid rgba(201,162,75,.55);pointer-events:none;z-index:5}
+  .cor.tl{top:-1px;left:-1px;border-top-width:1px;border-left-width:1px}
+  .cor.tr{top:-1px;right:-1px;border-top-width:1px;border-right-width:1px}
+  .cor.bl{bottom:-1px;left:-1px;border-bottom-width:1px;border-left-width:1px}
+  .cor.br{bottom:-1px;right:-1px;border-bottom-width:1px;border-right-width:1px}
+
+  /* ---- sliders (channel strips) ---- */
+  .sldr{position:relative;display:flex;align-items:center;flex:1 1 0;min-width:34px}
+  .trk{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:2px;background:#33302A;pointer-events:none;border-radius:1px}
+  .band{position:absolute;top:50%;transform:translateY(-50%);height:7px;background:var(--pc);opacity:.32;pointer-events:none;border-radius:1px}
+  .sldr input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;margin:0;background:transparent;cursor:ew-resize;position:relative}
+  .sldr input[type=range]::-webkit-slider-runnable-track{height:2px;background:transparent}
+  .sldr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:11px;height:11px;margin-top:-4.5px;border-radius:50%;background:#131210;border:2px solid #6E6759;transition:transform .12s ease,border-color .12s ease}
+  .sldr input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.25);border-color:#A79E8B}
+  .sldr input[type=range]:active::-webkit-slider-thumb{transform:scale(1.4)}
+  .sldr input[type=range][data-ring=current]::-webkit-slider-thumb{width:13px;height:13px;margin-top:-5.5px;border-color:var(--pc)}
+  .sldr input[type=range]::-moz-range-track{height:2px;background:transparent}
+  .sldr input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:#131210;border:2px solid #6E6759;transition:transform .12s ease,border-color .12s ease}
+  .sldr input[type=range][data-ring=current]::-moz-range-thumb{border-color:var(--pc)}
+  .sldr input[type=range]:hover::-moz-range-thumb{transform:scale(1.25)}
+
+  /* ---- spinnerless numeric inputs ---- */
+  .num{width:46px;background:transparent;border:0;border-bottom:1px solid #2E2B25;color:#EDE6D8;font:inherit;font-size:11px;text-align:right;padding:1px 2px;border-radius:0;appearance:textfield;-moz-appearance:textfield}
+  .num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .num:focus{outline:none;border-bottom-color:var(--pc,#C9A24B)}
+
+  .name{border-bottom:1px solid transparent;transition:border-color .15s}
+  .name:focus{outline:none;border-bottom-color:var(--pc)}
+  .name::placeholder{color:rgba(141,135,122,.45)}
+
+  /* ---- profile header controls ---- */
+  .hbtn{width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:#8D877A;border:1px solid transparent;transition:color .15s,border-color .15s;flex:none}
+  .hbtn:hover{color:#EDE6D8;border-color:#2B2822}
+  .hbtn.off{color:#57524A}
+  .hbtn svg{width:13px;height:13px}
+  .hbtn.arm{width:auto;padding:0 7px;color:#D9654A;border-color:rgba(217,101,74,.55);font-size:9px;letter-spacing:.12em}
+
+  .wlock{display:flex;align-items:center;gap:4px;justify-self:end;font-size:9px;letter-spacing:.12em;color:rgba(141,135,122,.85);transition:color .15s;padding:2px}
+  .wlock:hover{color:#EDE6D8}
+  .wlock.on{color:var(--pc)}
+  .wlock svg{width:10px;height:10px}
+
+  .swatch{width:11px;height:11px;transform:rotate(45deg);background:var(--pc);flex:none;transition:transform .15s;cursor:pointer}
+  .swatch:hover{transform:rotate(45deg) scale(1.3)}
+  .colorpop{width:134px}
+  .colorpop input[type=color]{padding:0;background:transparent;width:20px;height:20px;border:1px solid #2B2822;cursor:pointer}
+
+  /* ---- expand / collapse ---- */
+  .profile .pbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.4,0,.2,1)}
+  .profile.open .pbody{grid-template-rows:1fr}
+  .profile .pbody>div{overflow:hidden;min-height:0}
+  .profile .toggle svg{transition:transform .25s}
+  .profile.open .toggle svg{transform:rotate(90deg)}
+  .profile.is-off .swatch,.profile.is-off .name,.profile.is-off .res{opacity:.35}
+  .profile.is-off{border-style:dashed}
+
+  /* ---- status chips & resonance ---- */
+  .chip{font-size:8.5px;letter-spacing:.14em;padding:2px 6px;border:1px solid transparent;line-height:1.4;white-space:nowrap}
+  .chip.met{color:#8FB98B;border-color:rgba(143,185,139,.35)}
+  .chip.starved{color:#D9654A;border-color:rgba(217,101,74,.4)}
+  .chip.saturated{color:#E2B33F;border-color:rgba(226,179,63,.4)}
+  .seg{width:7px;height:7px;border:1px solid rgba(237,230,216,.22);display:inline-block}
+  .seg.on{background:var(--pc);border-color:var(--pc)}
+
+  /* ---- pillar rail ---- */
+  .rail-row{padding:11px 8px;border-top:1px solid #2B2822;box-shadow:inset 2px 0 0 transparent;transition:box-shadow .2s,background .2s}
+  .rail-row:last-of-type{border-bottom:1px solid #2B2822}
+  .rail-row:hover{background:rgba(237,230,216,.03)}
+  .rail-row.active{background:rgba(201,162,75,.05);box-shadow:inset 2px 0 0 #C9A24B}
+
+  /* ---- toasts ---- */
+  #toasts{position:fixed;right:16px;bottom:16px;z-index:70;display:flex;flex-direction:column;gap:8px;max-width:340px}
+  .toast{font-size:10.5px;line-height:1.55;letter-spacing:.04em;background:#1A1815;border:1px solid #2B2822;border-left:2px solid #8FB98B;color:#EDE6D8;padding:10px 13px;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
+  .toast.show{opacity:1;transform:none}
+  .toast.bad{border-left-color:#D9654A}
+  .toast.gold{border-left-color:#C9A24B}
+
+  /* ---- modal ---- */
+  .mbtn{font-size:10px;letter-spacing:.18em;padding:9px 14px;border:1px solid #2B2822;color:#8D877A;transition:.15s}
+  .mbtn:hover{color:#EDE6D8;border-color:#4A453C}
+  .mbtn.primary{border-color:rgba(201,162,75,.65);color:#C9A24B}
+  .mbtn.primary:hover{background:#C9A24B;color:#131210}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+  .pulse{animation:pulse 1.1s ease-in-out infinite}
+  .ledge{scrollbar-width:thin;scrollbar-color:#2B2822 transparent}
+  .ledge::-webkit-scrollbar{width:9px}
+  .ledge::-webkit-scrollbar-thumb{background:#2B2822;border:2px solid #131210;border-radius:5px}
+  .sharebtn{transition:background .18s,color .18s,border-color .18s}
+  .sharebtn:hover{background:#C9A24B;color:#131210;border-color:#C9A24B}
+  canvas{outline:none}
+</style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-sky-500 selection:text-white pb-20">
 
-    <!-- Header -->
-    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
-                    5-Pillar Human Experience Scale
-                </h1>
-                <p class="text-xs text-slate-400 mt-0.5">Map what each person needs against where they are currently.</p>
-            </div>
-            
-            <!-- Room Sync & Mode Controls -->
-            <div class="flex items-center gap-3">
-                <span id="sync-status" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Local Mode</span>
-                <button onclick="toggleRoomModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow-lg shadow-sky-900/30 flex items-center gap-1.5">
-                    🌐 Share & Sync Room
-                </button>
-            </div>
-        </div>
-    </header>
+<body class="bg-ink text-cream font-mono antialiased min-h-screen flex flex-col">
 
-    <main class="max-w-7xl mx-auto px-4 py-8 space-y-10">
-
-        <!-- VIEW TOGGLE TABS -->
-        <div class="flex border-b border-slate-800 gap-6 text-sm font-medium">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="pb-3 border-b-2 border-sky-500 text-sky-400 transition">
-                Master Hero & Grid View
-            </button>
-            <button onclick="switchTab('heatmap')" id="tab-heatmap" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
-                Group Heatmap Matrix
-            </button>
-        </div>
-
-        <!-- TAB 1: DASHBOARD (Master Hero + Small Multiples Grid) -->
-        <div id="view-dashboard" class="space-y-10">
-            
-            <!-- MASTER HERO OVERLAY RADAR CHART -->
-            <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                    <div>
-                        <h2 class="text-lg font-semibold text-slate-200">Master Group Comparison</h2>
-                        <p class="text-xs text-slate-400">Toggle people below to overlay their profiles on the master chart.</p>
-                    </div>
-                    <!-- Quick Select Checkboxes for Master Chart -->
-                    <div id="master-toggles" class="flex flex-wrap gap-2">
-                        <span class="text-xs text-slate-500 self-center">No profiles added yet.</span>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                    <div class="lg:col-span-6 flex justify-center">
-                        <div class="w-full max-w-[420px] aspect-square relative">
-                            <canvas id="masterRadarChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="lg:col-span-6 space-y-4 border-t lg:border-t-0 lg:border-l border-slate-800 lg:pl-6 pt-6 lg:pt-0">
-                        <h3 class="text-sm font-medium text-slate-300">How to read this chart:</h3>
-                        <ul class="text-xs text-slate-400 space-y-2 list-disc list-inside">
-                            <li><strong>Shaded Band:</strong> The minimum to maximum range where a person feels fulfilled.</li>
-                            <li><strong>Solid Line:</strong> Where that pillar actually sits for them right now.</li>
-                            <li><strong>Direct Dragging:</strong> You can click and drag any point directly on the chart canvas to adjust values live!</li>
-                        </ul>
-                        <div class="pt-4">
-                            <button onclick="addNewProfile()" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 font-medium py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow">
-                                + Add Person
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION HEADER: PROFILES GRID -->
-            <div class="flex justify-between items-center">
-                <h2 class="text-xl font-bold text-slate-200">Participant Cards</h2>
-                <button onclick="addNewProfile()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-2 rounded-lg font-medium transition">
-                    + Add Person
-                </button>
-            </div>
-
-            <!-- SMALL-MULTIPLES MINI-CARDS GRID (8+ people optimized) -->
-            <div id="profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Dynamically injected profile cards -->
-            </div>
-        </div>
-
-        <!-- TAB 2: HEATMAP MATRIX -->
-        <div id="view-heatmap" class="hidden space-y-6">
-            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl overflow-x-auto">
-                <h2 class="text-lg font-semibold text-slate-200 mb-2">Group Heatmap Matrix</h2>
-                <p class="text-xs text-slate-400 mb-6">A bird's-eye comparison of current actual levels across all participants.</p>
-                <div id="heatmap-container">
-                    <!-- Dynamically injected table -->
-                </div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- ROOM SYNC MODAL -->
-    <div id="room-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex justify-between items-center">
-                <h3 class="text-lg font-bold text-slate-200">Real-Time Cloud Room</h3>
-                <button onclick="toggleRoomModal()" class="text-slate-400 hover:text-white">&times;</button>
-            </div>
-            <p class="text-xs text-slate-400">
-                Want friends on other devices to join and edit live? Enter a unique Room ID or generate one to sync instantly via Firebase.
-            </p>
-            <div class="space-y-3 pt-2">
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">Room Code / ID</label>
-                    <input type="text" id="room-id-input" placeholder="e.g. sean-group-2026" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
-                </div>
-                <div class="flex gap-3 pt-2">
-                    <button onclick="joinRoom()" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg text-sm transition">
-                        Connect Room
-                    </button>
-                    <button onclick="generateRandomRoom()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-4 py-2 rounded-lg text-sm transition">
-                        Generate
-                    </button>
-                </div>
-            </div>
-        </div>
+<!-- ============ HEADER ============ -->
+<header class="border-b border-line">
+  <div class="max-w-[1500px] mx-auto px-5 md:px-6 py-5 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+    <div>
+      <div class="text-[9px] md:text-[10px] tracking-[0.38em] text-brass">AN INSTRUMENT FOR MAPPING CONSCIOUSNESS</div>
+      <h1 class="font-serif text-[26px] md:text-[34px] leading-[1.1] mt-1.5">Sean's Scale <span class="italic font-normal text-dim">on Human Experience</span></h1>
+      <p class="text-[10px] text-dim tracking-[0.05em] mt-1.5">Five structural axes of mind — each read as a fulfillment <span class="text-cream/80">target band</span> and a <span class="text-cream/80">current actual</span>.</p>
     </div>
+    <div class="flex items-center gap-2.5">
+      <div class="flex items-center gap-2 border border-line px-3 py-2 text-[9.5px] tracking-[0.18em]">
+        <span id="syncDot" class="w-1.5 h-1.5 rounded-full" style="background:#57524A"></span>
+        <span id="syncText" class="text-dim">LOCAL ONLY</span>
+        <span id="roomTag" class="hidden items-center gap-1.5 text-brass cursor-pointer hover:underline underline-offset-2" title="Copy invite link"></span>
+      </div>
+      <button id="shareBtn" class="sharebtn flex items-center gap-2 border border-brass/70 text-brass px-3.5 py-2 text-[9.5px] tracking-[0.2em]"></button>
+    </div>
+  </div>
+</header>
 
-    <!-- JAVASCRIPT APP LOGIC -->
-    <script>
-        // --- PILLARS DEFINITION ---
-        const PILLARS = [
-            { key: 'curiosity', label: 'Curiosity', desc: 'The desire to understand' },
-            { key: 'agency', label: 'Agency', desc: 'The desire to act and alter reality' },
-            { key: 'mortality', label: 'Mortality', desc: 'Awareness of finitude and time' },
-            { key: 'empathy', label: 'Empathy', desc: 'The desire to connect with other minds' },
-            { key: 'abstraction', label: 'Abstraction', desc: 'Symbols, stories and complex ideas' }
-        ];
+<!-- ============ MAIN ============ -->
+<main class="w-full max-w-[1500px] mx-auto px-5 md:px-6 py-5 grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)_450px] xl:grid-cols-[250px_minmax(0,1fr)_500px] flex-1">
 
-        const PALETTE = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#fb7185', '#34d399', '#fbbf24', '#a78bfa'];
+  <!-- Pillar index rail -->
+  <aside id="rail" class="hidden lg:flex flex-col"></aside>
 
-        // --- STATE ---
-        let profiles = []; // Blank slate by default!
-        let activeMasterToggles = {}; // profileId -> boolean
-        let currentTab = 'dashboard';
-        let masterChart = null;
-        let miniCharts = {};
+  <!-- Radar plate -->
+  <section class="relative border border-line bg-coal/40 flex flex-col h-[540px] lg:h-[calc(100vh-190px)] lg:min-h-[620px]">
+    <i class="cor tl"></i><i class="cor tr"></i><i class="cor bl"></i><i class="cor br"></i>
+    <div class="flex items-center justify-between gap-4 px-4 pt-3 pb-1">
+      <div class="text-[9px] tracking-[0.28em] text-dim">FIG. 01 — PROFILE PLATE</div>
+      <div class="hidden md:flex items-center gap-4 text-[8.5px] tracking-[0.14em] text-dim">
+        <span class="flex items-center gap-1.5"><i class="inline-block w-3.5 h-2 border border-cream/25" style="background:rgba(237,230,216,.12)"></i>BAND</span>
+        <span class="flex items-center gap-1.5"><i class="inline-block w-3.5 border-t border-dashed border-cream/50"></i>EDGES</span>
+        <span class="flex items-center gap-1.5"><i class="inline-block w-2 h-2 rounded-full bg-ink border border-cream/70"></i>CURRENT</span>
+      </div>
+    </div>
+    <div id="canvasWrap" class="relative flex-1 min-h-0 mx-3 mb-2">
+      <canvas id="radar"></canvas>
+      <div id="chartEmpty" class="absolute inset-0 z-10 hidden flex-col items-center justify-center text-center pointer-events-none">
+        <div class="text-[10px] tracking-[0.32em] text-dim">NO SUBJECTS ON RECORD</div>
+        <p class="text-[10px] text-dim/75 mt-2.5 leading-relaxed">The plate is clean. Add a person from the ledger,<br>or trace a demonstration subject.</p>
+        <button data-example class="pointer-events-auto mt-5 border border-line px-3.5 py-2 text-[9px] tracking-[0.22em] text-cream/80 hover:border-brass hover:text-brass transition-colors">TRACE AN EXAMPLE SUBJECT</button>
+      </div>
+      <div id="readout" class="absolute z-20 hidden pointer-events-none border border-line bg-ink/95 px-3 py-2 min-w-[160px]" style="box-shadow:0 6px 24px rgba(0,0,0,.45)">
+        <div id="roRing" class="text-[8.5px] tracking-[0.2em] text-dim"></div>
+        <div id="roVal" class="font-serif text-[22px] leading-tight mt-0.5"></div>
+        <div id="roSub" class="text-[8.5px] text-dim mt-1 whitespace-nowrap"></div>
+      </div>
+    </div>
+  </section>
 
-        // Firebase Setup Placeholder (Users can plug in their own firebase config if they want cloud sync)
-        let db = null;
-        let currentRoomId = null;
-        let isSyncingFromCloud = false;
+  <!-- Subject ledger -->
+  <section class="relative border border-line bg-coal/40 flex flex-col lg:h-[calc(100vh-190px)] lg:min-h-[620px]">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-line">
+      <div class="text-[9px] tracking-[0.28em] text-dim">SUBJECT LEDGER · <span id="ledgerCount" class="text-cream">00</span></div>
+      <button id="addBtn" class="sharebtn flex items-center gap-1.5 border border-brass/70 text-brass px-3 py-1.5 text-[9px] tracking-[0.2em]">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>ADD PERSON
+      </button>
+    </div>
+    <div class="ledge flex-1 min-h-0 overflow-y-auto p-3">
+      <div id="ledgerEmpty" class="hidden border border-dashed border-line px-6 py-8 text-center">
+        <div class="text-[10px] tracking-[0.3em] text-dim">LEDGER EMPTY</div>
+        <p class="text-[10px] text-dim/75 mt-2.5 leading-relaxed">No subjects on record yet.<br>Add a person to begin mapping their five axes.</p>
+        <button data-example class="mt-5 border border-line px-3.5 py-2 text-[9px] tracking-[0.22em] text-cream/80 hover:border-brass hover:text-brass transition-colors">TRACE AN EXAMPLE SUBJECT</button>
+      </div>
+      <div id="profiles" class="flex flex-col gap-3"></div>
+    </div>
+    <div class="px-4 py-2.5 border-t border-line text-[8.5px] tracking-[0.12em] text-dim/80">CLICK A SUBJECT TO EXPAND ITS FIVE CHANNELS · CLICK “W” TO LOCK BAND WIDTH</div>
+  </section>
+</main>
 
-        // --- INITIALIZATION ---
-        window.addEventListener('DOMContentLoaded', () => {
-            initMasterChart();
-            renderApp();
-        });
+<footer class="w-full max-w-[1500px] mx-auto px-5 md:px-6 py-4 mt-1 border-t border-line flex flex-wrap gap-x-8 gap-y-1.5 text-[8.5px] tracking-[0.16em] text-dim/70">
+  <span>SCALE 0.0 – 10.0 · STEP 0.1</span>
+  <span>DRAG VERTICES DIRECTLY ON THE PLATE</span>
+  <span>TARGET BAND = WHAT SATISFIES · CURRENT = WHERE YOU SIT</span>
+  <span class="ml-auto text-dim/50">SEAN'S SCALE ON HUMAN EXPERIENCE</span>
+</footer>
 
-        function switchTab(tab) {
-            currentTab = tab;
-            document.getElementById('view-dashboard').classList.toggle('hidden', tab !== 'dashboard');
-            document.getElementById('view-heatmap').classList.toggle('hidden', tab !== 'heatmap');
-            
-            document.getElementById('tab-dashboard').className = tab === 'dashboard' 
-                ? 'pb-3 border-b-2 border-sky-500 text-sky-400 transition' 
-                : 'pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
-            
-            document.getElementById('tab-heatmap').className = tab === 'heatmap' 
-                ? 'pb-3 border-b-2 border-sky-500 text-sky-400 transition' 
-                : 'pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
+<!-- Modal + toasts -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
+  <div class="w-full max-w-sm border border-line bg-coal p-6" style="box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div class="text-[9px] tracking-[0.32em] text-brass">SYNC ROOM</div>
+    <h3 id="modalTitle" class="font-serif text-[22px] mt-2 leading-snug"></h3>
+    <p id="modalBody" class="text-[10.5px] text-dim mt-3 leading-relaxed"></p>
+    <div id="modalActions" class="flex flex-wrap gap-2 mt-6"></div>
+  </div>
+</div>
+<div id="toasts"></div>
 
-            if (tab === 'heatmap') renderHeatmap();
-        }
+<script type="module">
+/* =====================================================================
+   FIREBASE — paste your own web-app config here to enable sync rooms.
+   (Firestore in test mode / rules allowing read+write on rooms/**)
+   Without a valid config the app runs fully in local-only mode.
+===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey:            "PASTE_YOUR_API_KEY",
+  authDomain:        "your-project.firebaseapp.com",
+  projectId:         "your-project-id",
+  storageBucket:     "your-project.appspot.com",
+  messagingSenderId: "000000000000",
+  appId:             "1:000000000000:web:xxxxxxxxxxxx"
+};
+const CONFIGURED = !/PASTE|YOUR_/i.test(FIREBASE_CONFIG.apiKey || '');
+const FB_APP_URL = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+const FS_URL     = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-        // --- PROFILE MANAGEMENT ---
-        function addNewProfile() {
-            const id = 'p_' + Math.random().toString(36).substr(2, 9);
-            const colorIndex = profiles.length % PALETTE.length;
-            const newProf = {
-                id: id,
-                name: `Person ${profiles.length + 1}`,
-                color: PALETTE[colorIndex],
-                visible: true,
-                pillars: {
-                    curiosity: { min: 4, max: 7, current: 5, locked: true },
-                    agency: { min: 4, max: 7, current: 5, locked: true },
-                    mortality: { min: 4, max: 7, current: 5, locked: true },
-                    empathy: { min: 4, max: 7, current: 5, locked: true },
-                    abstraction: { min: 4, max: 7, current: 5, locked: true }
-                }
-            };
-            profiles.push(newProf);
-            activeMasterToggles[id] = true;
-            renderApp();
-            syncToCloud();
-        }
+/* ---------------- constants ---------------- */
+const PILLARS = [
+  { key:'curiosity',   label:'CURIOSITY',   num:'I',   def:'The desire to understand.' },
+  { key:'agency',      label:'AGENCY',      num:'II',  def:'The desire to act, and to alter reality.' },
+  { key:'mortality',   label:'MORTALITY',   num:'III', def:'The awareness of finitude and time.' },
+  { key:'empathy',     label:'EMPATHY',     num:'IV',  def:'The desire to connect with other minds.' },
+  { key:'abstraction', label:'ABSTRACTION', num:'V',   def:'The ability to symbolize, build stories, and hold complex ideas.' },
+];
+const KEYS = PILLARS.map(p=>p.key);
+const PALETTE = ['#E2B33F','#D9654A','#8FB98B','#6FA8B5','#C97BA0','#B3A26B','#9AA7B8','#C97E4E'];
+const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-        function removeProfile(id) {
-            profiles = profiles.filter(p => p.id !== id);
-            delete activeMasterToggles[id];
-            if (miniCharts[id]) {
-                miniCharts[id].destroy();
-                delete miniCharts[id];
-            }
-            renderApp();
-            syncToCloud();
-        }
+/* ---------------- helpers ---------------- */
+const clamp  = (v,a=0,b=10)=>Math.min(b,Math.max(a,v));
+const round1 = v=>Math.round(v*10)/10;
+const fmt    = v=>(Math.round(v*10)/10).toFixed(1);
+const hexA   = (hex,a)=>{const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;};
+const esc    = s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid    = ()=>crypto.randomUUID ? crypto.randomUUID() : 'p-'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const genId  = n=>Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b=>ALPHA[b%ALPHA.length]).join('');
 
-        function updateProfileName(id, newName) {
-            const p = profiles.find(item => item.id === id);
-            if (p) {
-                p.name = newName;
-                renderMasterToggles();
-                syncToCloud();
-            }
-        }
+const ic = inner=>`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const I = {
+  chev:   ic('<path d="M9 5l7 7-7 7"/>'),
+  eye:    ic('<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.7"/>'),
+  eyeoff: ic('<path d="M3 3l18 18"/><path d="M10.7 5.7c.4-.1.9-.2 1.3-.2 6.5 0 10 6.5 10 6.5a17.6 17.6 0 0 1-2.7 3.4M6.7 6.7A16.9 16.9 0 0 0 2 12s3.5 6.5 10 6.5a10.4 10.4 0 0 0 3.8-.7"/><path d="M9.9 9.9a2.9 2.9 0 0 0 4.1 4.1"/>'),
+  lock:   ic('<rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  unlock: ic('<rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V7a4 4 0 0 1 7.8-1.4"/>'),
+  trash:  ic('<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>'),
+  plus:   ic('<path d="M12 5v14M5 12h14"/>'),
+  copy:   ic('<rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>'),
+};
 
-        function toggleVisibility(id) {
-            const p = profiles.find(item => item.id === id);
-            if (p) {
-                p.visible = !p.visible;
-                renderApp();
-            }
-        }
+/* ---------------- state ---------------- */
+const state = { profiles: [] };
+const ui = { activePillar:null, openIds:new Set(), room:null, sync:'local', drag:null, dsRecords:[], bandRecords:[] };
+let fb = null, fbFailed = false;   // firebase handle { db, f } — lazily loaded
+let unsub = null;
+const writtenHash = new Map();
+const writeTimers = new Map();
 
-        // --- SLIDER & VALUE UPDATES ---
-        function updateValue(id, pillarKey, type, val) {
-            const p = profiles.find(item => item.id === id);
-            if (!p) return;
-            val = parseFloat(val);
+/* ---------------- DOM refs ---------------- */
+const $ = id=>document.getElementById(id);
+const profilesEl=$('profiles'), railEl=$('rail'), ledgerEmpty=$('ledgerEmpty'), chartEmpty=$('chartEmpty'),
+      readout=$('readout'), roRing=$('roRing'), roVal=$('roVal'), roSub=$('roSub'), canvasWrap=$('canvasWrap'),
+      ledgerCount=$('ledgerCount'), addBtn=$('addBtn'), shareBtn=$('shareBtn'), syncDot=$('syncDot'),
+      syncText=$('syncText'), roomTag=$('roomTag'), modal=$('modal'), modalTitle=$('modalTitle'),
+      modalBody=$('modalBody'), modalActions=$('modalActions'), toastsEl=$('toasts');
 
-            const pil = p.pillars[pillarKey];
-            if (type === 'min') {
-                pil.min = val;
-                if (pil.min > pil.max) pil.max = pil.min;
-                if (pil.locked) {
-                    // maintain width
-                }
-            } else if (type === 'max') {
-                pil.max = val;
-                if (pil.max < pil.min) pil.min = pil.max;
-            } else if (type === 'current') {
-                pil.current = val;
-            }
+function setShown(el,on,disp='flex'){ el.classList.toggle('hidden',!on); el.classList.toggle(disp,on); }
 
-            // Sync visual text inputs without full DOM redraw
-            const minBadge = document.getElementById(`val-${id}-${pillarKey}-min`);
-            const maxBadge = document.getElementById(`val-${id}-${pillarKey}-max`);
-            const curBadge = document.getElementById(`val-${id}-${pillarKey}-cur`);
-            if (minBadge) minBadge.value = pil.min;
-            if (maxBadge) maxBadge.value = pil.max;
-            if (curBadge) curBadge.value = pil.current;
+/* ---------------- toasts & modal ---------------- */
+function toast(msg,kind='ok'){
+  const t=document.createElement('div');
+  t.className='toast '+kind; t.textContent=msg;
+  toastsEl.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),300); },3800);
+}
+function showModal({title,body,actions}){
+  modalTitle.textContent=title; modalBody.textContent=body;
+  modalActions.innerHTML='';
+  actions.forEach(a=>{
+    const b=document.createElement('button');
+    b.className='mbtn'+(a.primary?' primary':'');
+    b.textContent=a.label; b.addEventListener('click',a.fn);
+    modalActions.appendChild(b);
+  });
+  setShown(modal,true,'flex');
+}
+const hideModal=()=>setShown(modal,false,'flex');
 
-            updateChartsData();
-            syncToCloud();
-        }
+/* ---------------- profile factory ---------------- */
+const findProfile = id=>state.profiles.find(p=>p.id===id);
+const sortedProfiles = ()=>[...state.profiles].sort((a,b)=>(a.order||0)-(b.order||0));
+const nextOrder = ()=>state.profiles.reduce((m,p)=>Math.max(m,p.order||0),0)+1;
+function nextName(){
+  let mx=0;
+  for(const p of state.profiles){ const m=/^SUBJECT-(\d+)$/i.exec(p.name||''); if(m) mx=Math.max(mx,+m[1]); }
+  return `SUBJECT-${String(mx+1).padStart(2,'0')}`;
+}
+function leastUsedColor(){
+  const counts={}; PALETTE.forEach(c=>counts[c]=0);
+  state.profiles.forEach(p=>{ if(counts[p.color]!==undefined) counts[p.color]++; });
+  return PALETTE.reduce((a,b)=>counts[b]<counts[a]?b:a);
+}
+function defaultProfile(){
+  const values={}; KEYS.forEach(k=>values[k]={min:3,max:7,current:5});
+  return { id:uid(), name:nextName(), color:leastUsedColor(), visible:true, lock:false, order:nextOrder(), values };
+}
 
-        function toggleLock(id, pillarKey) {
-            const p = profiles.find(item => item.id === id);
-            if (!p) return;
-            p.pillars[pillarKey].locked = !p.pillars[pillarKey].locked;
-            renderApp();
-        }
+/* ---------------- firestore doc (de)serialization ---------------- */
+function profileToDoc(p){
+  return { name:p.name||'SUBJECT', color:p.color, visible:!!p.visible, lock:!!p.lock,
+           order:p.order||0, values:JSON.parse(JSON.stringify(p.values)) };
+}
+const valSig = v=>KEYS.map(k=>`${v[k].min}|${v[k].max}|${v[k].current}`).join(';');
+const hashDoc = d=>[d.name,d.color,!!d.visible,!!d.lock,d.order].join('~')+'~'+valSig(d.values);
+function docToProfile(id,d){
+  const src=d.values||{}, values={};
+  KEYS.forEach(k=>{
+    const v=src[k]||{};
+    let min=Number.isFinite(+v.min)?clamp(round1(+v.min)):3;
+    let max=Number.isFinite(+v.max)?clamp(round1(+v.max)):7;
+    if(min>max){ const t=min; min=max; max=t; }
+    values[k]={ min, max, current:Number.isFinite(+v.current)?clamp(round1(+v.current)):5 };
+  });
+  return { id, name:String(d.name||'SUBJECT').slice(0,40),
+           color:/^#[0-9a-fA-F]{6}$/.test(d.color||'')?d.color:PALETTE[0],
+           visible:d.visible!==false, lock:!!d.lock,
+           order:Number.isFinite(+d.order)?+d.order:0, values };
+}
 
-        // --- RENDER APP ---
-        function renderApp() {
-            renderMasterToggles();
-            renderProfilesGrid();
-            updateChartsData();
-            if (currentTab === 'heatmap') renderHeatmap();
-        }
+/* ---------------- profile rendering ---------------- */
+function profileHTML(p){
+  const pillarRows = PILLARS.map(pi=>`
+    <div class="pillar-block" data-pillar="${pi.key}">
+      <div class="flex items-center gap-2">
+        <span class="text-[9px] tracking-[0.22em] text-dim">${pi.label}</span>
+        <span class="flex-1 h-px bg-line"></span>
+        <span class="chip" data-role="status"></span>
+      </div>
+      <div class="grid grid-cols-[30px_1fr_52px] items-center gap-x-2 mt-1.5">
+        <span class="text-[8.5px] tracking-[0.15em] text-dim/70">TGT</span>
+        <div class="flex items-center gap-1.5 min-w-0">
+          <div class="sldr"><i class="trk"></i><input type="range" min="0" max="10" step="0.1" data-pillar="${pi.key}" data-ring="min" data-kind="range" aria-label="${pi.label} target minimum"></div>
+          <input type="number" inputmode="decimal" class="num" min="0" max="10" step="0.1" data-pillar="${pi.key}" data-ring="min" data-kind="num" aria-label="${pi.label} target minimum value">
+          <span class="text-dim/60 text-[10px]">–</span>
+          <div class="sldr"><i class="trk"></i><input type="range" min="0" max="10" step="0.1" data-pillar="${pi.key}" data-ring="max" data-kind="range" aria-label="${pi.label} target maximum"></div>
+          <input type="number" inputmode="decimal" class="num" min="0" max="10" step="0.1" data-pillar="${pi.key}" data-ring="max" data-kind="num" aria-label="${pi.label} target maximum value">
+        </div>
+        <button class="wlock ${p.lock?'on':''}" data-action="lock" title="RANGE WIDTH LOCK — when locked, both target edges move as one band">
+          <span data-role="wlabel"></span><span data-role="wicon">${p.lock?I.lock:I.unlock}</span>
+        </button>
+      </div>
+      <div class="grid grid-cols-[30px_1fr_52px] items-center gap-x-2">
+        <span class="text-[8.5px] tracking-[0.15em] text-dim/70">ACT</span>
+        <div class="sldr">
+          <i class="trk"></i>
+          <i class="band" data-role="band"></i>
+          <input type="range" min="0" max="10" step="0.1" data-pillar="${pi.key}" data-ring="current" data-kind="range" aria-label="${pi.label} current actual">
+        </div>
+        <input type="number" inputmode="decimal" class="num" min="0" max="10" step="0.1" data-pillar="${pi.key}" data-ring="current" data-kind="num" aria-label="${pi.label} current value">
+      </div>
+    </div>`).join('');
 
-        function renderMasterToggles() {
-            const container = document.getElementById('master-toggles');
-            if (profiles.length === 0) {
-                container.innerHTML = `<span class="text-xs text-slate-500 self-center">No profiles added yet. Click "+ Add Person".</span>`;
-                return;
-            }
-            container.innerHTML = profiles.map(p => `
-                <button onclick="toggleMasterToggle('${p.id}')" class="text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition ${activeMasterToggles[p.id] !== false ? 'bg-slate-800 border-sky-500/50 text-sky-300 shadow' : 'bg-slate-950 border-slate-800 text-slate-500'}" style="border-left-color: ${p.color}; border-left-width: 4px;">
-                    ${p.name}
-                </button>
-            `).join('');
-        }
+  return `
+  <article class="profile border border-line bg-coal/50 ${p.visible?'':'is-off'} ${ui.openIds.has(p.id)?'open':''}"
+           data-pid="${p.id}" data-order="${p.order}" style="--pc:${p.color}">
+    <header class="profile-head relative flex items-center gap-2.5 px-3 py-2.5 cursor-pointer select-none">
+      <button class="toggle w-4 h-4 flex items-center justify-center text-dim hover:text-cream" data-action="expand" aria-label="Expand subject">${I.chev}</button>
+      <button class="swatch" data-action="color" title="Color" aria-label="Change color"></button>
+      <div class="colorpop absolute left-9 top-9 z-30 hidden border border-line bg-ink p-2.5" data-noclick style="box-shadow:0 10px 30px rgba(0,0,0,.5)">
+        <div class="grid grid-cols-4 gap-1.5">
+          ${PALETTE.map(c=>`<button class="w-5 h-5 border border-black/40 hover:scale-110 transition-transform" style="background:${c}" data-action="setcolor" data-c="${c}" aria-label="Color ${c}"></button>`).join('')}
+        </div>
+        <label class="mt-2.5 flex items-center justify-between gap-2 text-[8.5px] tracking-[0.15em] text-dim cursor-pointer hover:text-cream">
+          CUSTOM <input type="color" data-role="customcolor" value="${p.color}">
+        </label>
+      </div>
+      <input class="name flex-1 min-w-0 bg-transparent text-[12px] tracking-[0.08em] uppercase text-cream" data-role="name"
+             value="${esc(p.name)}" placeholder="NAME THIS SUBJECT" spellcheck="false" maxlength="40" aria-label="Subject name">
+      <span class="res hidden sm:flex items-center gap-[3px]" data-role="res" title="Pillars currently inside their band"></span>
+      <button class="hbtn ${p.visible?'':'off'}" data-action="visible" title="Show / hide on the plate">${p.visible?I.eye:I.eyeoff}</button>
+      <button class="hbtn hover:text-bad" data-action="delete" title="Remove subject">${I.trash}</button>
+    </header>
+    <div class="pbody"><div><div class="px-3 pb-3.5 pt-1 flex flex-col gap-3.5">${pillarRows}</div></div></div>
+  </article>`;
+}
 
-        function toggleMasterToggle(id) {
-            activeMasterToggles[id] = activeMasterToggles[id] === false ? true : false;
-            renderMasterToggles();
-            updateChartsData();
-        }
+function insertInOrder(art){
+  const order=+art.dataset.order;
+  for(const sib of [...profilesEl.children]){
+    if(sib===art) continue;
+    if(+sib.dataset.order>order){ profilesEl.insertBefore(art,sib); return; }
+  }
+  profilesEl.appendChild(art);
+}
+function mountProfile(p){
+  const t=document.createElement('template');
+  t.innerHTML=profileHTML(p).trim();
+  const art=t.content.firstElementChild;
+  insertInOrder(art);
+  paintProfileValues(p);
+}
+function rerenderProfile(p){
+  const old=profilesEl.querySelector(`[data-pid="${p.id}"]`);
+  const t=document.createElement('template');
+  t.innerHTML=profileHTML(p).trim();
+  const fresh=t.content.firstElementChild;
+  if(old) old.replaceWith(fresh);
+  insertInOrder(fresh);
+  paintProfileValues(p);
+}
+function bandStatus(v){
+  if(v.current < v.min-1e-9) return {k:'starved',   d:v.current-v.min};
+  if(v.current > v.max+1e-9) return {k:'saturated', d:v.current-v.max};
+  return {k:'met', d:0};
+}
+const stText = st=>st.k==='met' ? 'IN BAND' : `${st.k==='starved'?'STARVED':'SATURATED'} ${st.d>0?'+':'−'}${fmt(Math.abs(st.d))}`;
 
-        function renderProfilesGrid() {
-            const grid = document.getElementById('profiles-grid');
-            if (profiles.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl">
-                        <p class="text-slate-400 text-sm mb-3">No participants in the room yet.</p>
-                        <button onclick="addNewProfile()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs px-4 py-2 rounded-lg font-medium transition shadow">
-                            + Add First Person
-                        </button>
-                    </div>
-                `;
-                return;
-            }
+function paintProfileValues(p){
+  const art=profilesEl.querySelector(`[data-pid="${p.id}"]`); if(!art) return;
+  let met=0;
+  for(const pi of PILLARS){
+    const v=p.values[pi.key];
+    const block=art.querySelector(`.pillar-block[data-pillar="${pi.key}"]`); if(!block) continue;
+    for(const ring of ['min','max','current']) for(const kind of ['range','num']){
+      const el=block.querySelector(`input[data-ring="${ring}"][data-kind="${kind}"]`);
+      if(el && !(kind==='num' && document.activeElement===el)) el.value=fmt(v[ring]);
+    }
+    const band=block.querySelector('[data-role="band"]');
+    band.style.left=(v.min*10)+'%';
+    band.style.width=Math.max(0,(v.max-v.min)*10)+'%';
+    block.querySelector('[data-role="wlabel"]').textContent='W '+fmt(v.max-v.min);
+    const st=bandStatus(v);
+    const chip=block.querySelector('[data-role="status"]');
+    chip.textContent = st.k==='met' ? 'MET' : stText(st);
+    chip.className='chip '+st.k;
+    if(st.k==='met') met++;
+  }
+  const res=art.querySelector('[data-role="res"]');
+  if(res) res.innerHTML = PILLARS.map((_,i)=>`<i class="seg ${i<met?'on':''}"></i>`).join('')
+                          + `<b class="ml-1.5 text-[10px] font-medium text-cream/80 not-italic">${met}/5</b>`;
+  if(met===5 && p._metInit && p._met!==5) toast(`${p.name} — all five pillars in band`,'gold');
+  p._met=met; p._metInit=true;
+}
 
-            grid.innerHTML = profiles.map(p => `
-                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-6">
-                    <!-- Card Header -->
-                    <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                        <div class="flex items-center gap-2.5 flex-1">
-                            <input type="color" value="${p.color}" onchange="updateColor('${p.id}', this.value)" class="w-6 h-6 rounded border-0 cursor-pointer bg-transparent">
-                            <input type="text" value="${p.name}" oninput="updateProfileName('${p.id}', this.value)" class="bg-transparent font-semibold text-slate-200 text-sm focus:outline-none focus:border-b border-sky-500 flex-1">
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button onclick="toggleVisibility('${p.id}')" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition">
-                                ${p.visible !== false ? 'VISIBLE' : 'HIDDEN'}
-                            </button>
-                            <button onclick="removeProfile('${p.id}')" class="text-slate-500 hover:text-rose-400 p-1 text-sm transition" title="Delete">
-                                &times;
-                            </button>
-                        </div>
-                    </div>
+/* ---------------- value mutation (shared by sliders, inputs, chart drag) ---------------- */
+function setRange(p,key,which,v){
+  const t=p.values[key]; const o={...t};
+  v=clamp(round1(v));
+  if(p.lock){
+    const w=round1(o.max-o.min);
+    if(which==='min'){ t.min=clamp(v,0,round1(10-w)); t.max=round1(t.min+w); }
+    else             { t.max=clamp(v,w,10);          t.min=round1(t.max-w); }
+  }else{
+    if(which==='min') t.min=Math.min(v,t.max);
+    else              t.max=Math.max(v,t.min);
+  }
+  t.min=round1(t.min); t.max=round1(t.max);
+  return t.min!==o.min||t.max!==o.max;
+}
+function setCurrent(p,key,v){
+  v=clamp(round1(v));
+  if(v===p.values[key].current) return false;
+  p.values[key].current=v; return true;
+}
+function afterValueChange(p,animate=true){
+  paintProfileValues(p);
+  pushChartValues(p);
+  scheduleChartUpdate(animate);
+  queueWrite(p.id);
+}
 
-                    <!-- Mini Radar Canvas -->
-                    <div class="w-full aspect-square max-w-[220px] mx-auto relative">
-                        <canvas id="miniChart_${p.id}"></canvas>
-                    </div>
+/* ---------------- chart ---------------- */
+let chart, hoverRaf=null, chartDirty=false, chartAnim=false;
 
-                    <!-- Sliders Stack -->
-                    <div class="space-y-4">
-                        ${PILLARS.map(pil => {
-                            const val = p.pillars[pil.key];
-                            return `
-                                <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800/80 space-y-2">
-                                    <div class="flex justify-between items-center text-xs">
-                                        <span class="font-medium text-slate-300">${pil.label}</span>
-                                        <button onclick="toggleLock('${p.id}', '${pil.key}')" class="text-[10px] text-slate-400 hover:text-sky-400 transition">
-                                            ${val.locked ? '🔒 Locked' : '🔓 Unlocked'}
-                                        </button>
-                                    </div>
-                                    
-                                    <!-- Min Needed -->
-                                    <div class="flex items-center justify-between text-[11px] text-slate-400">
-                                        <span>Min Needed</span>
-                                        <input type="number" step="0.1" min="0" max="10" id="val-${p.id}-${pil.key}-min" value="${val.min}" oninput="updateValue('${p.id}', '${pil.key}', 'min', this.value)" class="custom-number-input w-12 text-center bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs py-0.5">
-                                    </div>
-                                    <input type="range" min="0" max="10" step="0.1" value="${val.min}" oninput="updateValue('${p.id}', '${pil.key}', 'min', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+function scheduleChartUpdate(animate=false){
+  chartAnim = chartAnim||animate;
+  if(chartDirty) return;
+  chartDirty=true;
+  requestAnimationFrame(()=>{ chartDirty=false; const a=chartAnim; chartAnim=false; chart.update(a?undefined:'none'); });
+}
+function rebuildDatasets(animate=false){
+  const ds=[]; ui.dsRecords=[]; ui.bandRecords=[];
+  for(const p of sortedProfiles()){
+    if(!p.visible) continue;
+    const c=p.color;
+    ds.push({ label:p.name+' · MIN', data:KEYS.map(k=>p.values[k].min), borderColor:hexA(c,.55), borderWidth:1,
+              borderDash:[5,4], fill:false, pointRadius:2.2, pointBackgroundColor:hexA(c,.8),
+              pointBorderColor:'rgba(0,0,0,0)', pointBorderWidth:0, pointHitRadius:9, pointHoverRadius:4 });
+    ui.dsRecords.push({pid:p.id, ring:'min'});
+    ds.push({ label:p.name+' · MAX', data:KEYS.map(k=>p.values[k].max), borderColor:hexA(c,.55), borderWidth:1,
+              borderDash:[5,4], fill:false, pointRadius:2.2, pointBackgroundColor:hexA(c,.8),
+              pointBorderColor:'rgba(0,0,0,0)', pointBorderWidth:0, pointHitRadius:9, pointHoverRadius:4 });
+    ui.dsRecords.push({pid:p.id, ring:'max'});
+    ds.push({ label:p.name+' · CURRENT', data:KEYS.map(k=>p.values[k].current), borderColor:c, borderWidth:1.8,
+              fill:false, pointRadius:3.4, pointBackgroundColor:'#131210', pointBorderColor:c,
+              pointBorderWidth:1.6, pointHitRadius:13, pointHoverRadius:6 });
+    ui.dsRecords.push({pid:p.id, ring:'current'});
+    ui.bandRecords.push({pid:p.id, min:KEYS.map(k=>p.values[k].min), max:KEYS.map(k=>p.values[k].max), fill:hexA(c,.11)});
+  }
+  chart.data.datasets=ds;
+  scheduleChartUpdate(animate);
+}
+function pushChartValues(p){
+  chart.data.datasets.forEach((ds,i)=>{
+    const rec=ui.dsRecords[i];
+    if(rec && rec.pid===p.id) ds.data=KEYS.map(k=>p.values[k][rec.ring]);
+  });
+  ui.bandRecords.forEach(b=>{
+    if(b.pid===p.id){ b.min=KEYS.map(k=>p.values[k].min); b.max=KEYS.map(k=>p.values[k].max); }
+  });
+}
 
-                                    <!-- Max Needed -->
-                                    <div class="flex items-center justify-between text-[11px] text-slate-400">
-                                        <span>Max Needed</span>
-                                        <input type="number" step="0.1" min="0" max="10" id="val-${p.id}-${pil.key}-max" value="${val.max}" oninput="updateValue('${p.id}', '${pil.key}', 'max', this.value)" class="custom-number-input w-12 text-center bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs py-0.5">
-                                    </div>
-                                    <input type="range" min="0" max="10" step="0.1" value="${val.max}" oninput="updateValue('${p.id}', '${pil.key}', 'max', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+/* custom plugin: fills the polygon between each subject's MIN and MAX rings */
+const bandFillPlugin = {
+  id:'bandFill',
+  beforeDatasetsDraw(chart){
+    const recs=ui.dsRecords;
+    for(let i=0;i<recs.length;i++){
+      if(recs[i].ring!=='min') continue;
+      const mA=chart.getDatasetMeta(i).data, mB=chart.getDatasetMeta(i+1)?.data;
+      if(!mB || mA.length<5 || mB.length<5) continue;
+      const rec=ui.bandRecords.find(b=>b.pid===recs[i].pid); if(!rec) continue;
+      const ctx=chart.ctx;
+      ctx.save(); ctx.beginPath();
+      mA.forEach((pt,j)=> j?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y));
+      for(let j=mB.length-1;j>=0;j--) ctx.lineTo(mB[j].x,mB[j].y);
+      ctx.closePath(); ctx.fillStyle=rec.fill; ctx.fill(); ctx.restore();
+    }
+  }
+};
 
-                                    <!-- Current Actual -->
-                                    <div class="flex items-center justify-between text-[11px] text-sky-400 font-medium pt-1 border-t border-slate-800/50">
-                                        <span>Current Actual</span>
-                                        <input type="number" step="0.1" min="0" max="10" id="val-${p.id}-${pil.key}-cur" value="${val.current}" oninput="updateValue('${p.id}', '${pil.key}', 'current', this.value)" class="custom-number-input w-12 text-center bg-slate-900 border border-sky-500/50 rounded text-sky-300 text-xs py-0.5">
-                                    </div>
-                                    <input type="range" min="0" max="10" step="0.1" value="${val.current}" oninput="updateValue('${p.id}', '${pil.key}', 'current', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `).join('');
+function initChart(){
+  Chart.defaults.color='rgba(237,230,216,.45)';
+  Chart.defaults.font.family="'IBM Plex Mono', monospace";
+  chart=new Chart($('radar'),{
+    type:'radar',
+    data:{ labels:PILLARS.map(p=>p.label), datasets:[] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      events:[],                                   // pointer handling is fully manual
+      animation:{duration:260, easing:'easeOutCubic'},
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+      layout:{padding:6},
+      scales:{ r:{
+        min:0, max:10,
+        ticks:{ stepSize:2, color:'rgba(237,230,216,.22)', font:{size:8}, backdropColor:'transparent', padding:6 },
+        grid:{ color:'rgba(237,230,216,.07)' },
+        angleLines:{ color:'rgba(237,230,216,.07)' },
+        pointLabels:{ padding:14, font:{size:10, weight:'500'},
+                      color:c=>c.index===ui.activePillar?'#EDE6D8':'rgba(237,230,216,.42)' }
+      }}
+    },
+    plugins:[bandFillPlugin]
+  });
+  const cv=chart.canvas;
+  cv.style.touchAction='none';
+  cv.style.cursor='crosshair';
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
 
-            // Render mini charts after DOM injection
-            profiles.forEach(p => renderMiniChart(p));
-        }
+  cv.addEventListener('pointerdown',e=>{
+    if(e.button!==undefined && e.button!==0) return;
+    const els=chart.getElementsAtEventForMode(e,'nearest',{intersect:true},true);
+    if(!els.length) return;
+    const rec=ui.dsRecords[els[0].datasetIndex]; if(!rec) return;
+    const p=findProfile(rec.pid); if(!p) return;
+    ui.drag={profile:p, ring:rec.ring, pillar:KEYS[els[0].index]};
+    try{ cv.setPointerCapture(e.pointerId); }catch{}
+    cv.style.cursor='grabbing';
+    setActivePillar(els[0].index);
+    setShown(readout,true,'block');
+    updateReadout(p,ui.drag.pillar,rec.ring);
+    moveReadout(e);
+    e.preventDefault();
+  });
 
-        function updateColor(id, newColor) {
-            const p = profiles.find(item => item.id === id);
-            if (p) {
-                p.color = newColor;
-                renderApp();
-                syncToCloud();
-            }
-        }
+  cv.addEventListener('pointermove',e=>{
+    if(ui.drag){ onDragMove(e); return; }
+    if(hoverRaf) return;
+    hoverRaf=requestAnimationFrame(()=>{
+      hoverRaf=null;
+      const els=chart.getElementsAtEventForMode(e,'nearest',{intersect:true},true);
+      cv.style.cursor = els.length ? 'grab' : 'crosshair';
+      setActivePillar(els.length ? els[0].index : null);
+    });
+  });
 
-        // --- CHART.JS CONFIGURATION ---
-        function initMasterChart() {
-            const ctx = document.getElementById('masterRadarChart').getContext('2d');
-            masterChart = new Chart(ctx, {
-                type: 'radar',
-                data: {
-                    labels: PILLARS.map(p => p.label),
-                    datasets: []
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    scales: {
-                        r: {
-                            min: 0,
-                            max: 10,
-                            ticks: { stepSize: 2, color: '#64748b', backdropColor: 'transparent' },
-                            grid: { color: '#334155' },
-                            angleLines: { color: '#334155' },
-                            pointLabels: { color: '#cbd5e1', font: { size: 12, weight: '600' } }
-                        }
-                    },
-                    plugins: { legend: { display: true, labels: { color: '#cbd5e1', font: { size: 11 } } } }
-                }
-            });
-        }
+  const endDrag=e=>{
+    if(!ui.drag) return;
+    const pid=ui.drag.profile.id;
+    ui.drag=null; cv.style.cursor='crosshair';
+    setShown(readout,false,'block');
+    setActivePillar(null);
+    queueWrite(pid);
+    if(e && e.pointerId!==undefined){ try{ cv.releasePointerCapture(e.pointerId); }catch{} }
+  };
+  cv.addEventListener('pointerup',endDrag);
+  cv.addEventListener('pointercancel',endDrag);
+  cv.addEventListener('lostpointercapture',()=>endDrag(null));
+}
 
-        function renderMiniChart(p) {
-            const canvasId = `miniChart_${p.id}`;
-            const ctx = document.getElementById(canvasId);
-            if (!ctx) return;
+function pointerValue(e,pillarIdx){
+  const rect=chart.canvas.getBoundingClientRect();
+  const px=e.clientX-rect.left, py=e.clientY-rect.top;
+  const s=chart.scales.r;
+  const base=s.getPointPositionForValue(pillarIdx,0);
+  let ux=base.x-s.xCenter, uy=base.y-s.yCenter;
+  const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+  const d=(px-s.xCenter)*ux + (py-s.yCenter)*uy;      // project cursor onto the axis ray
+  return clamp(round1(s.getValueForDistanceFromCenter(d)));
+}
+function onDragMove(e){
+  const d=ui.drag, p=d.profile;
+  const v=pointerValue(e,PILLARS.findIndex(x=>x.key===d.pillar));
+  const changed = d.ring==='current' ? setCurrent(p,d.pillar,v) : setRange(p,d.pillar,d.ring,v);
+  if(changed) afterValueChange(p,false);
+  updateReadout(p,d.pillar,d.ring);
+  moveReadout(e);
+}
+function updateReadout(p,pillarKey,ring){
+  const pi=PILLARS.find(x=>x.key===pillarKey);
+  const v=p.values[pillarKey], st=bandStatus(v);
+  const cur = ring==='min'?v.min : ring==='max'?v.max : v.current;
+  roRing.textContent = `${({min:'TARGET MIN',max:'TARGET MAX',current:'CURRENT ACTUAL'})[ring]} — ${pi.label}`;
+  roVal.textContent = fmt(cur);
+  roVal.style.color = p.color;
+  roSub.textContent = `band ${fmt(v.min)}–${fmt(v.max)} · W ${fmt(v.max-v.min)} · now ${fmt(v.current)} · ${stText(st)}`;
+}
+function moveReadout(e){
+  const r=canvasWrap.getBoundingClientRect();
+  let x=e.clientX-r.left+16, y=e.clientY-r.top+16;
+  const rw=readout.offsetWidth||160, rh=readout.offsetHeight||70;
+  if(x+rw>r.width-8)  x=e.clientX-r.left-rw-16;
+  if(y+rh>r.height-8) y=e.clientY-r.top-rh-16;
+  readout.style.left=Math.max(4,x)+'px';
+  readout.style.top =Math.max(4,y)+'px';
+}
+function setActivePillar(i){
+  if(ui.activePillar===i) return;
+  ui.activePillar=i;
+  railEl.querySelectorAll('.rail-row').forEach((row,idx)=>row.classList.toggle('active',idx===i));
+  scheduleChartUpdate(false);
+}
 
-            if (miniCharts[p.id]) {
-                miniCharts[p.id].destroy();
-            }
+/* ---------------- pillar rail ---------------- */
+function buildRail(){
+  railEl.innerHTML = `<div class="text-[9px] tracking-[0.3em] text-dim mb-3 px-1">THE FIVE AXES</div>`
+    + PILLARS.map(p=>`
+      <div class="rail-row">
+        <div class="flex items-baseline gap-2.5">
+          <span class="text-[10px] text-brass/90 w-6 shrink-0">${p.num}</span>
+          <span class="text-[11.5px] tracking-[0.14em] text-cream/85">${p.label}</span>
+        </div>
+        <p class="text-[9.5px] text-dim leading-relaxed mt-1 ml-[34px]">${p.def}</p>
+      </div>`).join('')
+    + `<div class="mt-auto pt-5 mx-1 text-[9.5px] leading-relaxed text-dim/80 border-t border-line">
+         <p><span class="text-cream/80">HOW TO READ —</span> each subject draws a dashed fulfillment band (the range that satisfies them) and a solid current trace (where they actually sit). Drag any vertex on the plate, or use the channel sliders.</p>
+       </div>`;
+  railEl.querySelectorAll('.rail-row').forEach((row,i)=>{
+    row.addEventListener('mouseenter',()=>setActivePillar(i));
+    row.addEventListener('mouseleave',()=>{ if(!ui.drag) setActivePillar(null); });
+  });
+}
 
-            const dataMin = PILLARS.map(pil => p.pillars[pil.key].min);
-            const dataMax = PILLARS.map(pil => p.pillars[pil.key].max);
-            const dataCur = PILLARS.map(pil => p.pillars[pil.key].current);
+/* ---------------- ledger actions ---------------- */
+function toggleExpand(art){
+  art.classList.toggle('open');
+  const id=art.dataset.pid;
+  art.classList.contains('open') ? ui.openIds.add(id) : ui.openIds.delete(id);
+}
+function toggleVisible(p){
+  p.visible=!p.visible;
+  const art=profilesEl.querySelector(`[data-pid="${p.id}"]`);
+  if(art){
+    art.classList.toggle('is-off',!p.visible);
+    const b=art.querySelector('[data-action="visible"]');
+    if(b){ b.innerHTML=p.visible?I.eye:I.eyeoff; b.classList.toggle('off',!p.visible); }
+  }
+  rebuildDatasets(true); updateEmptyStates(); queueWrite(p.id);
+}
+function toggleLock(p){
+  p.lock=!p.lock;
+  const art=profilesEl.querySelector(`[data-pid="${p.id}"]`);
+  art?.querySelectorAll('[data-action="lock"]').forEach(b=>{
+    b.classList.toggle('on',p.lock);
+    const ic2=b.querySelector('[data-role="wicon"]');
+    if(ic2) ic2.innerHTML=p.lock?I.lock:I.unlock;
+  });
+  queueWrite(p.id);
+  toast(p.lock?'Band width locked — target edges now move as one':'Band width unlocked — edges move freely');
+}
+function setColor(p,c){
+  p.color=c;
+  const art=profilesEl.querySelector(`[data-pid="${p.id}"]`);
+  if(art) art.style.setProperty('--pc',c);
+  closePops(); rebuildDatasets(); queueWrite(p.id);
+}
+function deleteFlow(btn,p){
+  if(btn.dataset.arm==='1'){
+    if(fb && ui.room){
+      const {db,f}=fb;
+      f.deleteDoc(f.doc(db,'rooms',ui.room,'profiles',p.id)).catch(err=>toast('Delete failed: '+(err.code||err.message),'bad'));
+    }
+    removeLocal(p.id,false);
+  }else{
+    btn.dataset.arm='1'; btn.classList.add('arm');
+    const orig=btn.innerHTML;
+    btn.innerHTML='<span>SURE?</span>';
+    setTimeout(()=>{
+      if(!btn.isConnected || btn.dataset.arm!=='1') return;
+      btn.dataset.arm=''; btn.classList.remove('arm'); btn.innerHTML=orig;
+    },2400);
+  }
+}
+function removeLocal(id,silent){
+  const tm=writeTimers.get(id); if(tm) clearTimeout(tm);
+  writeTimers.delete(id); writtenHash.delete(id);
+  if(ui.drag && ui.drag.profile.id===id){ ui.drag=null; setShown(readout,false,'block'); setActivePillar(null); }
+  state.profiles=state.profiles.filter(p=>p.id!==id);
+  profilesEl.querySelector(`[data-pid="${id}"]`)?.remove();
+  rebuildDatasets(); updateEmptyStates(); updateCount();
+  if(!silent) toast('Subject removed from the record');
+}
+function closePops(){ document.querySelectorAll('.colorpop').forEach(p=>setShown(p,false,'block')); }
 
-            miniCharts[p.id] = new Chart(ctx.getContext('2d'), {
-                type: 'radar',
-                data: {
-                    labels: PILLARS.map(pil => pil.label),
-                    datasets: [
-                        { label: 'Max', data: dataMax, backgroundColor: p.color + '15', borderColor: p.color + '40', borderWidth: 1, pointRadius: 0 },
-                        { label: 'Min', data: dataMin, backgroundColor: p.color + '30', borderColor: p.color + '80', borderWidth: 1, pointRadius: 0 },
-                        { label: 'Current', data: dataCur, backgroundColor: p.color + '50', borderColor: p.color, borderWidth: 2, pointRadius: 3 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    scales: {
-                        r: {
-                            min: 0, max: 10,
-                            ticks: { display: false, stepSize: 5 },
-                            grid: { color: '#1e293b' },
-                            angleLines: { color: '#1e293b' },
-                            pointLabels: { color: '#94a3b8', font: { size: 10 } }
-                        }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
+/* add / example */
+function addProfile(p,{focusName=false}={}){
+  state.profiles.push(p);
+  ui.openIds.add(p.id);
+  mountProfile(p);
+  rebuildDatasets(true); updateEmptyStates(); updateCount(); queueWrite(p.id);
+  if(focusName){
+    const n=profilesEl.querySelector(`[data-pid="${p.id}"] [data-role="name"]`);
+    if(n){ n.focus(); n.select(); }
+  }
+}
+function addExample(){
+  const p=defaultProfile();
+  p.name='DEMONSTRATION SUBJECT';
+  p.values={
+    curiosity:  {min:4, max:8, current:6.5},
+    agency:     {min:3, max:9, current:2.4},   // starved
+    mortality:  {min:2, max:6, current:7.6},   // saturated
+    empathy:    {min:5, max:9, current:7.2},
+    abstraction:{min:3, max:8, current:5.0},
+  };
+  addProfile(p);
+}
 
-        function updateChartsData() {
-            if (!masterChart) return;
+function updateEmptyStates(){
+  setShown(chartEmpty, !state.profiles.some(p=>p.visible), 'flex');
+  setShown(ledgerEmpty, state.profiles.length===0, 'block');
+}
+function updateCount(){ ledgerCount.textContent=String(state.profiles.length).padStart(2,'0'); }
 
-            let datasets = [];
-            profiles.forEach(p => {
-                if (p.visible === false || activeMasterToggles[p.id] === false) return;
-                
-                const dataMin = PILLARS.map(pil => p.pillars[pil.key].min);
-                const dataMax = PILLARS.map(pil => p.pillars[pil.key].max);
-                const dataCur = PILLARS.map(pil => p.pillars[pil.key].current);
+/* ---------------- ledger event delegation ---------------- */
+profilesEl.addEventListener('click',e=>{
+  const actionEl=e.target.closest('[data-action]');
+  const art=e.target.closest('.profile');
+  if(actionEl){
+    const pid=art?.dataset.pid;
+    const p=pid?findProfile(pid):null;
+    switch(actionEl.dataset.action){
+      case 'expand':  if(art) toggleExpand(art); break;
+      case 'color':{
+        const pop=actionEl.closest('.profile-head').querySelector('.colorpop');
+        const willOpen=pop.classList.contains('hidden');
+        closePops();
+        if(willOpen) setShown(pop,true,'block');
+        break;
+      }
+      case 'setcolor': if(p) setColor(p,actionEl.dataset.c); break;
+      case 'lock':     if(p) toggleLock(p); break;
+      case 'visible':  if(p) toggleVisible(p); break;
+      case 'delete':   if(p) deleteFlow(actionEl,p); break;
+    }
+    return;
+  }
+  if(e.target.closest('[data-noclick]')) return;
+  if(e.target.closest('input,button,label')) return;
+  if(art) toggleExpand(art);
+});
+document.addEventListener('click',e=>{
+  if(e.target.closest('.colorpop')||e.target.closest('[data-action="color"]')) return;
+  closePops();
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePops(); });
 
-                // Add Max Range Band
-                datasets.push({
-                    label: `${p.name} (Range)`,
-                    data: dataMax,
-                    backgroundColor: p.color + '20',
-                    borderColor: p.color + '50',
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    fill: '+1' // fill to min dataset
-                });
-                // Add Min Range Band
-                datasets.push({
-                    label: `${p.name} (Min)`,
-                    data: dataMin,
-                    backgroundColor: 'transparent',
-                    borderColor: 'transparent',
-                    borderWidth: 0,
-                    pointRadius: 0,
-                    fill: false
-                });
-                // Add Current Actual Line
-                datasets.push({
-                    label: `${p.name} (Current)`,
-                    data: dataCur,
-                    backgroundColor: p.color + '40',
-                    borderColor: p.color,
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    fill: false
-                });
-            });
+profilesEl.addEventListener('input',e=>{
+  const t=e.target, art=t.closest('.profile'); if(!art) return;
+  const p=findProfile(art.dataset.pid); if(!p) return;
+  if(t.dataset.role==='name'){ p.name=t.value; queueWrite(p.id); return; }
+  if(t.dataset.role==='customcolor'){ if(t.value) setColor(p,t.value); return; }
+  if(t.dataset.pillar){
+    const {pillar,ring}=t.dataset;
+    const v=parseFloat(t.value); if(!Number.isFinite(v)) return;
+    const changed = ring==='current' ? setCurrent(p,pillar,v) : setRange(p,pillar,ring,v);
+    if(changed) afterValueChange(p);
+  }
+});
+profilesEl.addEventListener('change',e=>{
+  const t=e.target, art=t.closest('.profile'); if(!art) return;
+  const p=findProfile(art.dataset.pid); if(!p) return;
+  if(t.dataset.role==='name'){ p.name=t.value.trim(); t.value=p.name; queueWrite(p.id); return; }
+  if(t.dataset.pillar){
+    const {pillar,ring}=t.dataset;
+    const v=parseFloat(t.value);
+    if(Number.isFinite(v)){
+      if(ring==='current') setCurrent(p,pillar,v); else setRange(p,pillar,ring,v);
+    }
+    afterValueChange(p);
+  }
+});
+profilesEl.addEventListener('focusout',e=>{
+  const t=e.target;
+  if(!t.classList || !t.classList.contains('num')) return;
+  const art=t.closest('.profile'); if(!art) return;
+  const p=findProfile(art.dataset.pid); if(!p) return;
+  t.value=fmt(p.values[t.dataset.pillar][t.dataset.ring]);
+});
+profilesEl.addEventListener('keydown',e=>{
+  if(e.key==='Enter' && (e.target.dataset.role==='name' || e.target.classList?.contains('num'))) e.target.blur();
+});
 
-            masterChart.data.datasets = datasets;
-            masterChart.update('none');
+addBtn.addEventListener('click',()=>addProfile(defaultProfile(),{focusName:true}));
+document.querySelectorAll('[data-example]').forEach(b=>b.addEventListener('click',addExample));
 
-            // Update mini charts if instantiated
-            profiles.forEach(p => {
-                if (miniCharts[p.id]) {
-                    miniCharts[p.id].data.datasets[0].data = PILLARS.map(pil => p.pillars[pil.key].max);
-                    miniCharts[p.id].data.datasets[1].data = PILLARS.map(pil => p.pillars[pil.key].min);
-                    miniCharts[p.id].data.datasets[2].data = PILLARS.map(pil => p.pillars[pil.key].current);
-                    miniCharts[p.id].update('none');
-                }
-            });
-        }
+/* ---------------- firebase sync (lazy-loaded, optional) ---------------- */
+async function ensureDb(){
+  if(fb) return fb;
+  if(fbFailed) return null;
+  try{
+    const appMod=await import(FB_APP_URL);
+    const fMod=await import(FS_URL);
+    const app=appMod.initializeApp(FIREBASE_CONFIG);
+    fb={db:fMod.getFirestore(app), f:fMod};
+    return fb;
+  }catch(err){
+    console.warn('Firebase init failed:',err);
+    fbFailed=true;
+    return null;
+  }
+}
 
-        // --- HEATMAP MATRIX VIEW ---
-        function renderHeatmap() {
-            const container = document.getElementById('heatmap-container');
-            if (profiles.length === 0) {
-                container.innerHTML = `<p class="text-slate-400 text-xs text-center py-6">No profiles available to generate heatmap.</p>`;
-                return;
-            }
+function queueWrite(pid,immediate=false){
+  if(!fb || !ui.room) return;
+  const prev=writeTimers.get(pid); if(prev) clearTimeout(prev);
+  const run=()=>{
+    writeTimers.delete(pid);
+    const p=findProfile(pid); if(!p) return;
+    const {db,f}=fb;
+    const payload=profileToDoc(p);
+    writtenHash.set(pid,hashDoc(payload));            // remember our own echo
+    f.setDoc(f.doc(db,'rooms',ui.room,'profiles',pid),payload,{merge:true})
+     .catch(err=>toast('Sync write failed: '+(err.code||err.message),'bad'));
+  };
+  immediate ? run() : writeTimers.set(pid,setTimeout(run,140));
+}
 
-            let html = `
-                <table class="w-full text-left text-sm text-slate-300 border-collapse">
-                    <thead>
-                        <tr class="border-b border-slate-800 text-xs text-slate-400">
-                            <th class="py-3 px-4 font-semibold">Participant</th>
-                            ${PILLARS.map(pil => `<th class="py-3 px-4 font-semibold text-center">${pil.label}</th>`).join('')}
-                            <th class="py-3 px-4 font-semibold text-center">Average</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
+function handleSnapshot(snap){
+  let structural=false;
+  snap.docChanges().forEach(ch=>{
+    const id=ch.doc.id;
+    if(ch.type==='removed'){ if(findProfile(id)) removeLocal(id,true); return; }
+    const data=ch.doc.data();
+    if(ch.doc.metadata.hasPendingWrites) return;       // our own local write, not yet confirmed
+    const h=hashDoc(data);
+    if(writtenHash.get(id)===h) return;                // echo of our own confirmed write
+    const p=findProfile(id);
+    if(p && ui.drag && ui.drag.profile.id===id) return;// never clobber an active local drag
+    if(!p){
+      const np=docToProfile(id,data);
+      np._sig=[np.name,np.color,np.visible,np.lock,np.order].join('|');
+      state.profiles.push(np);
+      mountProfile(np);
+      structural=true;
+    }else{
+      const np=docToProfile(id,data);
+      if(valSig(np.values)!==valSig(p.values)){
+        p.values=np.values;
+        paintProfileValues(p); pushChartValues(p); scheduleChartUpdate(false);
+      }
+      const sig=[np.name,np.color,np.visible,np.lock,np.order].join('|');
+      if(sig!==p._sig){
+        Object.assign(p,{name:np.name,color:np.color,visible:np.visible,lock:np.lock,order:np.order,_sig:sig});
+        rerenderProfile(p);
+        structural=true;
+      }
+    }
+  });
+  if(structural){ rebuildDatasets(); updateEmptyStates(); updateCount(); }
+}
 
-            profiles.forEach(p => {
-                let sum = 0;
-                let count = 0;
-                let cells = PILLARS.map(pil => {
-                    let cur = p.pillars[pil.key].current;
-                    sum += cur;
-                    count++;
-                    let intensityBg = `background-color: ${p.color}; opacity: ${Math.max(0.15, cur / 10)};`;
-                    return `
-                        <td class="py-3 px-4 text-center">
-                            <span class="inline-block px-2.5 py-1 rounded-lg font-mono text-xs font-bold border border-slate-700" style="${intensityBg}">
-                                ${cur.toFixed(1)}
-                            </span>
-                        </td>
-                    `;
-                }).join('');
+function attachListener(roomId){
+  if(unsub){ unsub(); unsub=null; }
+  setSyncStatus('connecting');
+  const {db,f}=fb;
+  unsub=f.onSnapshot(f.collection(db,'rooms',roomId,'profiles'),
+    snap=>{
+      if(ui.sync!=='live') setSyncStatus('live');
+      handleSnapshot(snap);
+    },
+    err=>{
+      console.error(err);
+      setSyncStatus('error');
+      toast('Sync error: '+(err.code||err.message),'bad');
+    });
+}
 
-                let avg = (sum / count).toFixed(1);
-                html += `
-                    <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition">
-                        <td class="py-3 px-4 font-medium flex items-center gap-2">
-                            <span class="w-3 h-3 rounded-full" style="background-color: ${p.color}"></span>
-                            ${p.name}
-                        </td>
-                        ${cells}
-                        <td class="py-3 px-4 text-center font-bold text-sky-400 font-mono">${avg}</td>
-                    </tr>
-                `;
-            });
+function setSyncStatus(s){
+  ui.sync=s;
+  syncDot.style.background={local:'#57524A',connecting:'#E2B33F',live:'#8FB98B',error:'#D9654A',unavailable:'#D9654A'}[s];
+  syncDot.classList.toggle('pulse',s==='connecting');
+  syncText.textContent={local:'LOCAL ONLY',connecting:'SYNCING…',live:'LIVE',error:'SYNC ERROR',unavailable:'SYNC UNAVAILABLE'}[s];
+  syncText.classList.toggle('text-dim',s==='local');
+  syncText.classList.toggle('text-cream',s!=='local');
+}
 
-            html += `</tbody></table>`;
-            container.innerHTML = html;
-        }
+function enterRoom(id){
+  if(ui.room===id) return;
+  ui.room=id;
+  writtenHash.clear();
+  writeTimers.forEach(t=>clearTimeout(t)); writeTimers.clear();
+  attachListener(id);
+  setShown(roomTag,true,'flex');
+  roomTag.textContent=id;
+  renderShareBtn();
+  history.replaceState(null,'','#room='+id);
+}
 
-        // --- ROOM SYNC & CLOUD SETUP ---
-        function toggleRoomModal() {
-            const modal = document.getElementById('room-modal');
-            modal.classList.toggle('hidden');
-        }
+function renderShareBtn(){
+  shareBtn.innerHTML=(ui.room?I.copy:I.plus)
+    +`<span class="whitespace-nowrap">${ui.room?'COPY INVITE LINK':'SHARE & SYNC ROOM'}</span>`;
+}
 
-        function generateRandomRoom() {
-            const code = 'room_' + Math.random().toString(36.charts).substr(2, 6);
-            document.getElementById('room-id-input').value = code;
-        }
+async function copyLink(){
+  const url=location.href;
+  try{ await navigator.clipboard.writeText(url); return true; }
+  catch{
+    const ta=document.createElement('textarea');
+    ta.value=url; document.body.appendChild(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand('copy'); }catch{}
+    ta.remove(); return ok;
+  }
+}
 
-        function joinRoom() {
-            const roomId = document.getElementById('room-id-input').value.trim();
-            if (!roomId) {
-                alert('Please enter a valid room ID.');
-                return;
-            }
-            currentRoomId = roomId;
-            document.getElementById('sync-status').innerText = `Room: ${roomId}`;
-            document.getElementById('sync-status').className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800';
-            toggleRoomModal();
-            initFirebaseSync();
-        }
+shareBtn.addEventListener('click',async()=>{
+  if(ui.room){
+    const ok=await copyLink();
+    toast(ok?'Invite link copied — anyone opening it joins this room live':'Copy failed — select the URL in your address bar', ok?'ok':'bad');
+    return;
+  }
+  if(!CONFIGURED){
+    setSyncStatus('unavailable');
+    toast('Firebase is not configured — paste your project config into FIREBASE_CONFIG at the top of the script, then reload.','bad');
+    return;
+  }
+  setSyncStatus('connecting');
+  const fbo=await ensureDb();
+  if(!fbo){
+    setSyncStatus('unavailable');
+    toast('Could not reach Firebase — check your config and connection.','bad');
+    return;
+  }
+  const id='ROOM-'+genId(5);
+  const {db,f}=fbo;
+  try{ await f.setDoc(f.doc(db,'rooms',id),{createdAt:Date.now(),app:"seans-scale"}); }
+  catch(err){
+    setSyncStatus('error');
+    toast('Could not create room: '+(err.code||err.message),'bad');
+    return;
+  }
+  enterRoom(id);
+  state.profiles.forEach(p=>queueWrite(p.id,true));
+  const ok=await copyLink();
+  toast(ok?`Room ${id} is live — invite link copied to clipboard`:`Room ${id} is live — share the URL in your address bar`,'gold');
+});
+roomTag.addEventListener('click',async()=>{
+  const ok=await copyLink();
+  toast(ok?'Invite link copied':'Copy failed — select the URL in your address bar', ok?'ok':'bad');
+});
 
-        function initFirebaseConfig() {
-            // IF you want live syncing across devices, replace this block with your free Firebase project config credentials:
-            /*
-            const firebaseConfig = {
-                apiKey: "YOUR_API_KEY",
-                authDomain: "YOUR_AUTH_DOMAIN",
-                projectId: "YOUR_PROJECT_ID",
-                storageBucket: "YOUR_STORAGE_BUCKET",
-                messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-                appId: "YOUR_APP_ID"
-            };
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            db = firebase.firestore();
-            */
-        }
+function showJoinModal(id){
+  const n=state.profiles.length;
+  showModal({
+    title:`Join ${id}?`,
+    body:`This room syncs live across every connected device. You currently have ${n} subject${n===1?'':'s'} that exist only on this device.`,
+    actions:[
+      {label:'BRING THEM WITH ME', primary:true, fn:()=>{
+        hideModal(); enterRoom(id);
+        state.profiles.forEach(p=>queueWrite(p.id,true));
+        toast(`Joined ${id} — your subjects are now shared`);
+      }},
+      {label:'START CLEAN', fn:()=>{
+        hideModal();
+        state.profiles.slice().forEach(p=>removeLocal(p.id,true));
+        enterRoom(id);
+        toast(`Joined ${id}`);
+      }},
+      {label:'NOT NOW', fn:()=>{
+        hideModal();
+        history.replaceState(null,'',location.pathname+location.search);
+        setSyncStatus('local');
+        toast('Staying local');
+      }},
+    ]
+  });
+}
+async function joinFlow(id){
+  setSyncStatus('connecting');
+  const fbo=await ensureDb();
+  if(!fbo){
+    setSyncStatus('unavailable');
+    toast('Could not reach Firebase for room '+id,'bad');
+    return;
+  }
+  if(state.profiles.length===0) enterRoom(id);
+  else showJoinModal(id);
+}
 
-        function syncToCloud() {
-            if (!db || !currentRoomId || isSyncingFromCloud) return;
-            db.collection('rooms').doc(currentRoomId).set({
-                profiles: profiles,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.log('Sync error:', err));
-        }
+/* ---------------- boot ---------------- */
+buildRail();
+initChart();
+setSyncStatus('local');
+updateEmptyStates();
+updateCount();
+renderShareBtn();
 
-        function initFirebaseSync() {
-            initFirebaseConfig();
-            if (!db) {
-                console.log('Firebase config not set up yet. Running in local simulation mode.');
-                return;
-            }
-            db.collection('rooms').doc(currentRoomId).onSnapshot(doc => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    if (data && data.profiles) {
-                        isSyncingFromCloud = true;
-                        profiles = data.profiles;
-                        profiles.forEach(p => { if (activeMasterToggles[p.id] === undefined) activeMasterToggles[p.id] = true; });
-                        renderApp();
-                        isSyncingFromCloud = false;
-                    }
-                }
-            });
-        }
-    </script>
+const hashRoom=(location.hash.match(/room=([A-Za-z0-9-]+)/)||[])[1];
+if(hashRoom){
+  const id=hashRoom.toUpperCase();
+  if(!CONFIGURED){
+    setSyncStatus('unavailable');
+    toast(`This link points to sync room ${id}, but Firebase is not configured on this copy. Running local only.`,'bad');
+  }else{
+    joinFlow(id);
+  }
+}
+window.addEventListener('hashchange',()=>{
+  const id=(location.hash.match(/room=([A-Za-z0-9-]+)/)||[])[1]?.toUpperCase();
+  if(id && id!==ui.room){
+    if(!CONFIGURED){ toast('Firebase is not configured on this copy — cannot join '+id,'bad'); return; }
+    joinFlow(id);
+  }
+});
+</script>
 </body>
 </html>
