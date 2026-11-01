@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5-Pillar Human Experience Scale</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script>
+        // Suppress Tailwind CDN dev warning in browser console
+        window.tailwind = { config: { corePlugins: { preflight: true } } };
+        console.warn = (function(oldWarn) {
+            return function(msg) {
+                if (typeof msg === 'string' && msg.includes('cdn.tailwindcss.com')) return;
+                oldWarn.apply(console, arguments);
+            };
+        })(console.warn);
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Firebase SDKs for Real-Time Room Sync -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        input[type="range"] { accent-color: #38bdf8; }
+        .custom-number-input::-webkit-inner-spin-button, 
+        .custom-number-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-sky-500 selection:text-white pb-20">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
+                    5-Pillar Human Experience Scale
+                </h1>
+                <p class="text-xs text-slate-400 mt-0.5">Map what each person needs against where they are currently.</p>
+            </div>
+            
+            <!-- Room Sync & Mode Controls -->
+            <div class="flex items-center gap-3">
+                <span id="sync-status" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Local Mode</span>
+                <button onclick="toggleRoomModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow-lg shadow-sky-900/30 flex items-center gap-1.5">
+                    🌐 Share & Sync Room
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 space-y-10">
+
+        <!-- VIEW TOGGLE TABS -->
+        <div class="flex border-b border-slate-800 gap-6 text-sm font-medium">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="pb-3 border-b-2 border-sky-500 text-sky-400 transition">
+                Master Hero & Grid View
+            </button>
+            <button onclick="switchTab('heatmap')" id="tab-heatmap" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
+                Group Heatmap Matrix
+            </button>
+        </div>
+
+        <!-- TAB 1: DASHBOARD (Master Hero + Small Multiples Grid) -->
+        <div id="view-dashboard" class="space-y-10">
+            
+            <!-- MASTER HERO OVERLAY RADAR CHART -->
+            <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-200">Master Group Comparison</h2>
+                        <p class="text-xs text-slate-400">Toggle people below to overlay their profiles on the master chart.</p>
+                    </div>
+                    <!-- Quick Select Checkboxes for Master Chart -->
+                    <div id="master-toggles" class="flex flex-wrap gap-2">
+                        <span class="text-xs text-slate-500 self-center">No profiles added yet.</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    <div class="lg:col-span-6 flex justify-center">
+                        <div class="w-full max-w-[420px] aspect-square relative">
+                            <canvas id="masterRadarChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-6 space-y-4 border-t lg:border-t-0 lg:border-l border-slate-800 lg:pl-6 pt-6 lg:pt-0">
+                        <h3 class="text-sm font-medium text-slate-300">How to read this chart:</h3>
+                        <ul class="text-xs text-slate-400 space-y-2 list-disc list-inside">
+                            <li><strong>Shaded Band:</strong> The minimum to maximum range where a person feels fulfilled.</li>
+                            <li><strong>Solid Line:</strong> Where that pillar actually sits for them right now.</li>
+                            <li><strong>Direct Dragging:</strong> You can click and drag any point directly on the chart canvas to adjust values live!</li>
+                        </ul>
+                        <div class="pt-4">
+                            <button onclick="addNewProfile()" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 font-medium py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow">
+                                + Add Person
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION HEADER: PROFILES GRID -->
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-slate-200">Participant Cards</h2>
+                <button onclick="addNewProfile()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-2 rounded-lg font-medium transition">
+                    + Add Person
+                </button>
+            </div>
+
+            <!-- SMALL-MULTIPLES MINI-CARDS GRID (8+ people optimized) -->
+            <div id="profiles-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamically injected profile cards -->
+            </div>
+        </div>
+
+        <!-- TAB 2: HEATMAP MATRIX -->
+        <div id="view-heatmap" class="hidden space-y-6">
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl overflow-x-auto">
+                <h2 class="text-lg font-semibold text-slate-200 mb-2">Group Heatmap Matrix</h2>
+                <p class="text-xs text-slate-400 mb-6">A bird's-eye comparison of current actual levels across all participants.</p>
+                <div id="heatmap-container">
+                    <!-- Dynamically injected table -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ROOM SYNC MODAL -->
+    <div id="room-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-slate-200">Real-Time Cloud Room</h3>
+                <button onclick="toggleRoomModal()" class="text-slate-400 hover:text-white">&times;</button>
+            </div>
+            <p class="text-xs text-slate-400">
+                Want friends on other devices to join and edit live? Enter a unique Room ID or generate one to sync instantly via Firebase.
+            </p>
+            <div class="space-y-3 pt-2">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Room Code / ID</label>
+                    <input type="text" id="room-id-input" placeholder="e.g. sean-group-2026" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="joinRoom()" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg text-sm transition">
+                        Connect Room
+                    </button>
+                    <button onclick="generateRandomRoom()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-4 py-2 rounded-lg text-sm transition">
+                        Generate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APP LOGIC -->
+    <script>
+        // --- PILLARS DEFINITION ---
+        const PILLARS = [
+            { key: 'curiosity', label: 'Curiosity', desc: 'The desire to understand' },
+            { key: 'agency', label: 'Agency', desc: 'The desire to act and alter reality' },
+            { key: 'mortality', label: 'Mortality', desc: 'Awareness of finitude and time' },
+            { key: 'empathy', label: 'Empathy', desc: 'The desire to connect with other minds' },
+            { key: 'abstraction', label: 'Abstraction', desc: 'Symbols, stories and complex ideas' }
+        ];
+
+        const PALETTE = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#fb7185', '#34d399', '#fbbf24', '#a78bfa'];
+
+        // --- STATE ---
+        let profiles = []; // Blank slate by default!
+        let activeMasterToggles = {}; // profileId -> boolean
+        let currentTab = 'dashboard';
+        let masterChart = null;
+        let miniCharts = {};
+
+        // Firebase Setup Placeholder (Users can plug in their own firebase config if they want cloud sync)
+        let db = null;
+        let currentRoomId = null;
+        let isSyncingFromCloud = false;
+
+        // --- INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initMasterChart();
+            renderApp();
+        });
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('view-dashboard').classList.toggle('hidden', tab !== 'dashboard');
+            document.getElementById('view-heatmap').classList.toggle('hidden', tab !== 'heatmap');
+            
+            document.getElementById('tab-dashboard').className = tab === 'dashboard' 
+                ? 'pb-3 border-b-2 border-sky-500 text-sky-400 transition' 
+                : 'pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
+            
+            document.getElementById('tab-heatmap').className = tab === 'heatmap' 
+                ? 'pb-3 border-b-2 border-sky-500 text-sky-400 transition' 
+                : 'pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition';
+
+            if (tab === 'heatmap') renderHeatmap();
+        }
+
+        // --- PROFILE MANAGEMENT ---
+        function addNewProfile() {
+            const id = 'p_' + Math.random().toString(36).substr(2, 9);
+            const colorIndex = profiles.length % PALETTE.length;
+            const newProf = {
+                id: id,
+                name: `Person ${profiles.length + 1}`,
+                color: PALETTE[colorIndex],
+                visible: true,
+                pillars: {
+                    curiosity: { min: 4, max: 7, current: 5, locked: true },
+                    agency: { min: 4, max: 7, current: 5, locked: true },
+                    mortality: { min: 4, max: 7, current: 5, locked: true },
+                    empathy: { min: 4, max: 7, current: 5, locked: true },
+                    abstraction: { min: 4, max: 7, current: 5, locked: true }
+                }
+            };
+            profiles.push(newProf);
+            activeMasterToggles[id] = true;
+            renderApp();
+            syncToCloud();
+        }
+
+        function removeProfile(id) {
+            profiles = profiles.filter(p => p.id !== id);
+            delete activeMasterToggles[id];
+            if (miniCharts[id]) {
+                miniCharts[id].destroy();
+                delete miniCharts[id];
+            }
+            renderApp();
+            syncToCloud();
+        }
+
+        function updateProfileName(id, newName) {
+            const p = profiles.find(item => item.id === id);
+            if (p) {
+                p.name = newName;
+                renderMasterToggles();
+                syncToCloud();
+            }
+        }
+
+        function toggleVisibility(id) {
+            const p = profiles.find(item => item.id === id);
+            if (p) {
+                p.visible = !p.visible;
+                renderApp();
+            }
+        }
+
+        // --- SLIDER & VALUE UPDATES ---
+        function updateValue(id, pillarKey, type, val) {
+            const p = profiles.find(item => item.id === id);
+            if (!p) return;
+            val = parseFloat(val);
+
+            const pil = p.pillars[pillarKey];
+            if (type === 'min') {
+                pil.min = val;
+                if (pil.min > pil.max) pil.max = pil.min;
+                if (pil.locked) {
+                    // maintain width
+                }
+            } else if (type === 'max') {
+                pil.max = val;
+                if (pil.max < pil.min) pil.min = pil.max;
+            } else if (type === 'current') {
+                pil.current = val;
+            }
+
+            // Sync visual text inputs without full DOM redraw
+            const minBadge = document.getElementById(`val-${id}-${pillarKey}-min`);
+            const maxBadge = document.getElementById(`val-${id}-${pillarKey}-max`);
+            const curBadge = document.getElementById(`val-${id}-${pillarKey}-cur`);
+            if (minBadge) minBadge.value = pil.min;
+            if (maxBadge) maxBadge.value = pil.max;
+            if (curBadge) curBadge.value = pil.current;
+
+            updateChartsData();
+            syncToCloud();
+        }
+
+        function toggleLock(id, pillarKey) {
+            const p = profiles.find(item => item.id === id);
+            if (!p) return;
+            p.pillars[pillarKey].locked = !p.pillars[pillarKey].locked;
+            renderApp();
+        }
+
+        // --- RENDER APP ---
+        function renderApp() {
+            renderMasterToggles();
+            renderProfilesGrid();
+            updateChartsData();
+            if (currentTab === 'heatmap') renderHeatmap();
+        }
+
+        function renderMasterToggles() {
+            const container = document.getElementById('master-toggles');
+            if (profiles.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-500 self-center">No profiles added yet. Click "+ Add Person".</span>`;
+                return;
+            }
+            container.innerHTML = profiles.map(p => `
+                <button onclick="toggleMasterToggle('${p.id}')" class="text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition ${activeMasterToggles[p.id] !== false ? 'bg-slate-800 border-sky-500/50 text-sky-300 shadow' : 'bg-slate-950 border-slate-800 text-slate-500'}" style="border-left-color: ${p.color}; border-left-width: 4px;">
+                    ${p.name}
+                </button>
+            `).join('');
+        }
+
+        function toggleMasterToggle(id) {
+            activeMasterToggles[id] = activeMasterToggles[id] === false ? true : false;
+            renderMasterToggles();
+            updateChartsData();
+        }
+
+        function renderProfilesGrid() {
+            const grid = document.getElementById('profiles-grid');
+            if (profiles.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl">
+                        <p class="text-slate-400 text-sm mb-3">No participants in the room yet.</p>
+                        <button onclick="addNewProfile()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs px-4 py-2 rounded-lg font-medium transition shadow">
+                            + Add First Person
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = profiles.map(p => `
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-6">
+                    <!-- Card Header -->
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2.5 flex-1">
+                            <input type="color" value="${p.color}" onchange="updateColor('${p.id}', this.value)" class="w-6 h-6 rounded border-0 cursor-pointer bg-transparent">
+                            <input type="text" value="${p.name}" oninput="updateProfileName('${p.id}', this.value)" class="bg-transparent font-semibold text-slate-200 text-sm focus:outline-none focus:border-b border-sky-500 flex-1">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="toggleVisibility('${p.id}')" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition">
+                                ${p.visible !== false ? 'VISIBLE' : 'HIDDEN'}
+                            </button>
+                            <button onclick="removeProfile('${p.id}')" class="text-slate-500 hover:text-rose-400 p-1 text-sm transition" title="Delete">
+                                &times;
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mini Radar Canvas -->
+                    <div class="w-full aspect-square max-w-[220px] mx-auto relative">
+                        <canvas id="miniChart_${p.id}"></canvas>
+                    </div>
+
+                    <!-- Sliders Stack -->
+                    <div class="space-y-4">
+                        ${PILLARS.map(pil => {
+                            const val = p.pillars[pil.key];
+                            return `
+                                <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800/80 space-y-2">
+                                    <div class="flex justify-between items-center text-xs">
+                                        <span class="font-medium text-slate-300">${pil.label}</span>
+                                        <button onclick="toggleLock('${p.id}', '${pil.key}')" class="text-[10px] text-slate-400 hover:text-sky-400 transition">
+                                            ${val.locked ? '🔒 Locked' : '🔓 Unlocked'}
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Min Needed -->
+                                    <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                        <span>Min Needed</span>
+                                        <input type="number" step="0.1" min="0" max="10" id="val-${p.id}-${pil.key}-min" value="${val.min}" oninput="updateValue('${p.id}', '${pil.key}', 'min', this.value)" class="custom-number-input w-12 text-center bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs py-0.5">
+                                    </div>
+                                    <input type="range" min="0" max="10" step="0.1" value="${val.min}" oninput="updateValue('${p.id}', '${pil.key}', 'min', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+
+                                    <!-- Max Needed -->
+                                    <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                        <span>Max Needed</span>
+                                        <input type="number" step="0.1" min="0" max="10" id="val-${p.id}-${pil.key}-max" value="${val.max}" oninput="updateValue('${p.id}', '${pil.key}', 'max', this.value)" class="custom-number-input w-12 text-center bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs py-0.5">
+                                    </div>
+                                    <input type="range" min="0" max="10" step="0.1" value="${val.max}" oninput="updateValue('${p.id}', '${pil.key}', 'max', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+
+                                    <!-- Current Actual -->
+                                    <div class="flex items-center justify-between text-[11px] text-sky-400 font-medium pt-1 border-t border-slate-800/50">
+                                        <span>Current Actual</span>
+                                        <input type="number" step="0.1" min="0" max="10" id="val-${p.id}-${pil.key}-cur" value="${val.current}" oninput="updateValue('${p.id}', '${pil.key}', 'current', this.value)" class="custom-number-input w-12 text-center bg-slate-900 border border-sky-500/50 rounded text-sky-300 text-xs py-0.5">
+                                    </div>
+                                    <input type="range" min="0" max="10" step="0.1" value="${val.current}" oninput="updateValue('${p.id}', '${pil.key}', 'current', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            // Render mini charts after DOM injection
+            profiles.forEach(p => renderMiniChart(p));
+        }
+
+        function updateColor(id, newColor) {
+            const p = profiles.find(item => item.id === id);
+            if (p) {
+                p.color = newColor;
+                renderApp();
+                syncToCloud();
+            }
+        }
+
+        // --- CHART.JS CONFIGURATION ---
+        function initMasterChart() {
+            const ctx = document.getElementById('masterRadarChart').getContext('2d');
+            masterChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: PILLARS.map(p => p.label),
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 10,
+                            ticks: { stepSize: 2, color: '#64748b', backdropColor: 'transparent' },
+                            grid: { color: '#334155' },
+                            angleLines: { color: '#334155' },
+                            pointLabels: { color: '#cbd5e1', font: { size: 12, weight: '600' } }
+                        }
+                    },
+                    plugins: { legend: { display: true, labels: { color: '#cbd5e1', font: { size: 11 } } } }
+                }
+            });
+        }
+
+        function renderMiniChart(p) {
+            const canvasId = `miniChart_${p.id}`;
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            if (miniCharts[p.id]) {
+                miniCharts[p.id].destroy();
+            }
+
+            const dataMin = PILLARS.map(pil => p.pillars[pil.key].min);
+            const dataMax = PILLARS.map(pil => p.pillars[pil.key].max);
+            const dataCur = PILLARS.map(pil => p.pillars[pil.key].current);
+
+            miniCharts[p.id] = new Chart(ctx.getContext('2d'), {
+                type: 'radar',
+                data: {
+                    labels: PILLARS.map(pil => pil.label),
+                    datasets: [
+                        { label: 'Max', data: dataMax, backgroundColor: p.color + '15', borderColor: p.color + '40', borderWidth: 1, pointRadius: 0 },
+                        { label: 'Min', data: dataMin, backgroundColor: p.color + '30', borderColor: p.color + '80', borderWidth: 1, pointRadius: 0 },
+                        { label: 'Current', data: dataCur, backgroundColor: p.color + '50', borderColor: p.color, borderWidth: 2, pointRadius: 3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        r: {
+                            min: 0, max: 10,
+                            ticks: { display: false, stepSize: 5 },
+                            grid: { color: '#1e293b' },
+                            angleLines: { color: '#1e293b' },
+                            pointLabels: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updateChartsData() {
+            if (!masterChart) return;
+
+            let datasets = [];
+            profiles.forEach(p => {
+                if (p.visible === false || activeMasterToggles[p.id] === false) return;
+                
+                const dataMin = PILLARS.map(pil => p.pillars[pil.key].min);
+                const dataMax = PILLARS.map(pil => p.pillars[pil.key].max);
+                const dataCur = PILLARS.map(pil => p.pillars[pil.key].current);
+
+                // Add Max Range Band
+                datasets.push({
+                    label: `${p.name} (Range)`,
+                    data: dataMax,
+                    backgroundColor: p.color + '20',
+                    borderColor: p.color + '50',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    fill: '+1' // fill to min dataset
+                });
+                // Add Min Range Band
+                datasets.push({
+                    label: `${p.name} (Min)`,
+                    data: dataMin,
+                    backgroundColor: 'transparent',
+                    borderColor: 'transparent',
+                    borderWidth: 0,
+                    pointRadius: 0,
+                    fill: false
+                });
+                // Add Current Actual Line
+                datasets.push({
+                    label: `${p.name} (Current)`,
+                    data: dataCur,
+                    backgroundColor: p.color + '40',
+                    borderColor: p.color,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    fill: false
+                });
+            });
+
+            masterChart.data.datasets = datasets;
+            masterChart.update('none');
+
+            // Update mini charts if instantiated
+            profiles.forEach(p => {
+                if (miniCharts[p.id]) {
+                    miniCharts[p.id].data.datasets[0].data = PILLARS.map(pil => p.pillars[pil.key].max);
+                    miniCharts[p.id].data.datasets[1].data = PILLARS.map(pil => p.pillars[pil.key].min);
+                    miniCharts[p.id].data.datasets[2].data = PILLARS.map(pil => p.pillars[pil.key].current);
+                    miniCharts[p.id].update('none');
+                }
+            });
+        }
+
+        // --- HEATMAP MATRIX VIEW ---
+        function renderHeatmap() {
+            const container = document.getElementById('heatmap-container');
+            if (profiles.length === 0) {
+                container.innerHTML = `<p class="text-slate-400 text-xs text-center py-6">No profiles available to generate heatmap.</p>`;
+                return;
+            }
+
+            let html = `
+                <table class="w-full text-left text-sm text-slate-300 border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-xs text-slate-400">
+                            <th class="py-3 px-4 font-semibold">Participant</th>
+                            ${PILLARS.map(pil => `<th class="py-3 px-4 font-semibold text-center">${pil.label}</th>`).join('')}
+                            <th class="py-3 px-4 font-semibold text-center">Average</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            profiles.forEach(p => {
+                let sum = 0;
+                let count = 0;
+                let cells = PILLARS.map(pil => {
+                    let cur = p.pillars[pil.key].current;
+                    sum += cur;
+                    count++;
+                    let intensityBg = `background-color: ${p.color}; opacity: ${Math.max(0.15, cur / 10)};`;
+                    return `
+                        <td class="py-3 px-4 text-center">
+                            <span class="inline-block px-2.5 py-1 rounded-lg font-mono text-xs font-bold border border-slate-700" style="${intensityBg}">
+                                ${cur.toFixed(1)}
+                            </span>
+                        </td>
+                    `;
+                }).join('');
+
+                let avg = (sum / count).toFixed(1);
+                html += `
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition">
+                        <td class="py-3 px-4 font-medium flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full" style="background-color: ${p.color}"></span>
+                            ${p.name}
+                        </td>
+                        ${cells}
+                        <td class="py-3 px-4 text-center font-bold text-sky-400 font-mono">${avg}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        // --- ROOM SYNC & CLOUD SETUP ---
+        function toggleRoomModal() {
+            const modal = document.getElementById('room-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function generateRandomRoom() {
+            const code = 'room_' + Math.random().toString(36.charts).substr(2, 6);
+            document.getElementById('room-id-input').value = code;
+        }
+
+        function joinRoom() {
+            const roomId = document.getElementById('room-id-input').value.trim();
+            if (!roomId) {
+                alert('Please enter a valid room ID.');
+                return;
+            }
+            currentRoomId = roomId;
+            document.getElementById('sync-status').innerText = `Room: ${roomId}`;
+            document.getElementById('sync-status').className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800';
+            toggleRoomModal();
+            initFirebaseSync();
+        }
+
+        function initFirebaseConfig() {
+            // IF you want live syncing across devices, replace this block with your free Firebase project config credentials:
+            /*
+            const firebaseConfig = {
+                apiKey: "YOUR_API_KEY",
+                authDomain: "YOUR_AUTH_DOMAIN",
+                projectId: "YOUR_PROJECT_ID",
+                storageBucket: "YOUR_STORAGE_BUCKET",
+                messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+                appId: "YOUR_APP_ID"
+            };
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            */
+        }
+
+        function syncToCloud() {
+            if (!db || !currentRoomId || isSyncingFromCloud) return;
+            db.collection('rooms').doc(currentRoomId).set({
+                profiles: profiles,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(err => console.log('Sync error:', err));
+        }
+
+        function initFirebaseSync() {
+            initFirebaseConfig();
+            if (!db) {
+                console.log('Firebase config not set up yet. Running in local simulation mode.');
+                return;
+            }
+            db.collection('rooms').doc(currentRoomId).onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data && data.profiles) {
+                        isSyncingFromCloud = true;
+                        profiles = data.profiles;
+                        profiles.forEach(p => { if (activeMasterToggles[p.id] === undefined) activeMasterToggles[p.id] = true; });
+                        renderApp();
+                        isSyncingFromCloud = false;
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
